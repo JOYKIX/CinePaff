@@ -125,7 +125,7 @@ async function handleAuth(event) {
       elements.authError.textContent = 'ID déjà utilisé';
       return;
     }
-    const user = { passwordHash, isAdmin: id === 'JOYKIX', createdAt: Date.now() };
+    const user = { passwordHash, isAdmin: false, createdAt: Date.now() };
     await set(userRef, user);
     currentUser = { id, isAdmin: user.isAdmin };
   } else {
