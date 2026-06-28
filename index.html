@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CinéPaff</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page auth-page" id="authPage">
+      <section class="card auth-card">
+        <h1>CinéPaff</h1>
+        <form id="authForm">
+          <input id="identifier" placeholder="ID" autocomplete="username" />
+          <input id="password" placeholder="MDP" type="password" autocomplete="current-password" />
+          <p class="error" id="authError"></p>
+          <button id="authSubmit" type="submit">Connexion</button>
+        </form>
+        <button class="link-button" id="authToggle">Créer un compte</button>
+      </section>
+    </main>
+
+    <main class="page hidden" id="appPage">
+      <header class="topbar">
+        <h1>CinéPaff</h1>
+        <div>
+          <span id="currentUser"></span>
+          <button id="logoutButton">Déconnexion</button>
+        </div>
+      </header>
+
+      <section class="grid">
+        <div class="card">
+          <h2>Proposer un film</h2>
+          <form class="search" id="searchForm">
+            <input id="movieQuery" placeholder="Film" />
+            <button type="submit">Rechercher</button>
+          </form>
+          <p class="message" id="message"></p>
+          <div class="results" id="results"></div>
+        </div>
+
+        <div class="card">
+          <h2>Films proposés</h2>
+          <div class="list" id="movieList"></div>
+        </div>
+
+        <div class="card winner hidden" id="winnerCard">
+          <h2>Film tiré</h2>
+          <strong id="winnerTitle"></strong>
+          <small id="winnerUser"></small>
+        </div>
+
+        <div class="card admin hidden" id="adminPanel">
+          <h2>Admin</h2>
+          <button id="drawButton">Lancer le tirage</button>
+          <div class="list" id="userList"></div>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
