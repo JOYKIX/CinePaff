@@ -32,6 +32,7 @@
       <nav class="tabs" aria-label="Navigation">
         <button class="tab" type="button" data-route="home">Accueil</button>
         <button class="tab admin-only hidden" type="button" data-route="draws">Tirages</button>
+        <button class="tab" type="button" data-route="cinema">Salle</button>
         <button class="tab" type="button" data-route="history">Historique</button>
         <button class="tab" type="button" data-route="profile">Profil</button>
       </nav>
@@ -86,6 +87,23 @@
             <div class="list" id="userList"></div>
           </section>
         </div>
+      </section>
+
+      <section class="view hidden" id="cinemaView" data-view="cinema">
+        <section class="panel cinema-panel">
+          <div class="panel-head">
+            <h2>Salle</h2>
+            <div class="cinema-actions admin-only hidden">
+              <button id="startCinemaButton" type="button">Partager</button>
+              <button id="stopCinemaButton" type="button" disabled>Arrêter</button>
+            </div>
+          </div>
+          <div class="cinema-screen" id="cinemaScreen">
+            <video id="cinemaVideo" autoplay playsinline></video>
+          </div>
+          <button id="fullscreenCinemaButton" type="button" disabled>Plein écran</button>
+          <p class="message" id="cinemaMessage"></p>
+        </section>
       </section>
 
       <section class="view hidden" id="historyView" data-view="history">
