@@ -1,5 +1,5 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js';
-import { getDatabase, ref, get, set, push, update, onValue } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js';
+import { getDatabase, ref, get, set, push, update, remove, onValue } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyCU6x9NpQofU3wuYVzd0QIhHVO9uO_WRNA',
@@ -169,6 +169,10 @@ function proposedMovie() {
   return movieArray().find((movie) => movie.proposedBy === currentUser?.id);
 }
 
+function canProposeMovie() {
+  return currentUser?.isAdmin || !proposedMovie();
+}
+
 function render() {
   elements.authPage.classList.toggle('hidden', Boolean(currentUser));
   elements.appPage.classList.toggle('hidden', !currentUser);
@@ -193,9 +197,10 @@ function posterUrl(path, size = 'w342') {
 function renderMovies() {
   const list = movieArray().sort((a, b) => a.createdAt - b.createdAt);
   const ownMovie = proposedMovie();
+  const canPropose = canProposeMovie();
   elements.drawButton.disabled = list.length === 0;
-  elements.searchForm.classList.toggle('hidden', Boolean(ownMovie));
-  elements.message.textContent = ownMovie ? 'Film proposé' : '';
+  elements.searchForm.classList.toggle('hidden', !canPropose);
+  elements.message.textContent = ownMovie && !currentUser?.isAdmin ? 'Film proposé' : '';
   elements.movieList.replaceChildren(...list.map((movie) => {
     const item = document.createElement('article');
     item.className = 'poster-card';
@@ -219,6 +224,14 @@ function renderMovies() {
     proposedBy.textContent = movie.proposedBy;
     meta.append(title, proposedBy);
     item.append(meta);
+    if (movie.proposedBy === currentUser?.id) {
+      const deleteButton = document.createElement('button');
+      deleteButton.className = 'poster-card__delete';
+      deleteButton.type = 'button';
+      deleteButton.textContent = 'Supprimer';
+      deleteButton.addEventListener('click', () => deleteMovie(movie.key));
+      item.append(deleteButton);
+    }
     return item;
   }));
 }
@@ -335,7 +348,7 @@ function createMovieButton(movie) {
 }
 
 async function proposeMovie(movie) {
-  if (proposedMovie()) {
+  if (!canProposeMovie()) {
     elements.message.textContent = 'Film déjà proposé';
     return;
   }
@@ -350,6 +363,13 @@ async function proposeMovie(movie) {
   elements.results.replaceChildren();
   elements.movieQuery.value = '';
   elements.message.textContent = 'Film proposé';
+}
+
+async function deleteMovie(key) {
+  const movie = movies[key];
+  if (!movie || movie.proposedBy !== currentUser?.id) return;
+  await remove(ref(db, `movies/${key}`));
+  elements.message.textContent = '';
 }
 
 function buildDrawCovers(list) {
@@ -393,6 +413,7 @@ async function drawMovie() {
   const selected = { ...list[Math.floor(Math.random() * list.length)], drawnAt: Date.now() };
   await set(ref(db, 'draw/current'), selected);
   await push(ref(db, 'draw/history'), selected);
+  await remove(ref(db, 'movies'));
   elements.drawButton.disabled = false;
 }
 
