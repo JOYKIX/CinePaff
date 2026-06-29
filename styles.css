@@ -207,3 +207,9 @@ small { color: var(--muted); }
   .winner { grid-template-columns: 1fr; }
   .winner-poster { min-height: auto; }
 }
+
+.seen-grid { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.seen-card .poster-card__meta { gap: 8px; }
+.rating { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.rating-button { min-height: 34px; padding: 0; color: var(--ivory); background: rgba(255, 255, 255, 0.035); box-shadow: none; outline: 1px solid rgba(255, 216, 141, 0.16); }
+.rating-button.active { color: #160b05; background: linear-gradient(135deg, var(--gold-light), var(--gold) 52%, var(--gold-deep)); }

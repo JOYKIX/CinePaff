@@ -48,7 +48,7 @@ const elements = {
   usersPanel: document.querySelector('#usersPanel'),
   drawButton: document.querySelector('#drawButton'),
   userList: document.querySelector('#userList'),
-  historyList: document.querySelector('#historyList'),
+  seenList: document.querySelector('#seenList'),
   profileDetails: document.querySelector('#profileDetails'),
 };
 
@@ -171,7 +171,7 @@ function setRoute(nextRoute) {
 
 function syncRouteFromHash() {
   const nextRoute = window.location.hash.replace('#', '') || 'home';
-  setRoute(['home', 'draws', 'history', 'profile'].includes(nextRoute) ? nextRoute : 'home');
+  setRoute(['home', 'draws', 'seen', 'profile'].includes(nextRoute) ? nextRoute : 'home');
 }
 
 function formatDate(timestamp) {
@@ -209,7 +209,7 @@ function wasLastDrawnUser() {
 }
 
 function canProposeMovie() {
-  return !wasLastDrawnUser() && (currentUser?.isAdmin || !proposedMovie());
+  return !wasLastDrawnUser() && !proposedMovie();
 }
 
 function render() {
@@ -225,7 +225,7 @@ function render() {
   renderMovies();
   renderUsers();
   renderDraw();
-  renderHistory();
+  renderSeenMovies();
   renderProfile();
 }
 
@@ -239,7 +239,7 @@ function renderMovies() {
   const canPropose = canProposeMovie();
   elements.drawButton.disabled = list.length === 0;
   elements.searchForm.classList.toggle('hidden', !canPropose);
-  elements.message.textContent = wasLastDrawnUser() ? 'Dernier tiré au sort' : ownMovie && !currentUser?.isAdmin ? 'Film proposé' : '';
+  elements.message.textContent = wasLastDrawnUser() ? 'Dernier tiré au sort' : ownMovie ? 'Film proposé' : '';
   elements.movieList.replaceChildren(...list.map((movie) => {
     const item = document.createElement('article');
     item.className = 'poster-card';
@@ -310,11 +310,71 @@ function renderDraw() {
   }
 }
 
-function renderHistory() {
+function getMovieRatings(movie) {
+  return Object.values(movie.ratings || {}).filter((rating) => Number.isFinite(rating));
+}
+
+function getAverageRating(movie) {
+  const ratings = getMovieRatings(movie);
+  if (!ratings.length) return '';
+  const average = ratings.reduce((total, rating) => total + rating, 0) / ratings.length;
+  return average.toFixed(1);
+}
+
+function createRatingButton(movie, value) {
+  const button = document.createElement('button');
+  button.className = 'rating-button';
+  button.type = 'button';
+  button.textContent = '★';
+  button.ariaLabel = `${value}/5`;
+  button.classList.toggle('active', value <= (movie.ratings?.[currentUser.id] || 0));
+  button.addEventListener('click', () => rateSeenMovie(movie.key, value));
+  return button;
+}
+
+function createSeenMovieCard(movie) {
+  const item = document.createElement('article');
+  item.className = 'poster-card seen-card';
+  const imageUrl = posterUrl(movie.posterPath);
+  if (imageUrl) {
+    const image = document.createElement('img');
+    image.src = imageUrl;
+    image.alt = '';
+    item.append(image);
+  } else {
+    const fallback = document.createElement('div');
+    fallback.className = 'poster-card__fallback';
+    fallback.textContent = movie.title;
+    item.append(fallback);
+  }
+
+  const meta = document.createElement('div');
+  meta.className = 'poster-card__meta';
+  const title = document.createElement('strong');
+  title.textContent = movie.title;
+  const proposedBy = document.createElement('small');
+  proposedBy.textContent = movie.proposedBy;
+  const average = document.createElement('small');
+  const averageRating = getAverageRating(movie);
+  average.textContent = averageRating ? `${averageRating}/5` : '';
+  const rating = document.createElement('div');
+  rating.className = 'rating';
+  rating.append(...[1, 2, 3, 4, 5].map((value) => createRatingButton(movie, value)));
+  meta.append(title, proposedBy, average, rating);
+  item.append(meta);
+  return item;
+}
+
+function renderSeenMovies() {
   const list = Object.entries(history)
     .map(([key, movie]) => ({ key, ...movie }))
     .sort((a, b) => (b.drawnAt || 0) - (a.drawnAt || 0));
-  elements.historyList.replaceChildren(...list.map((movie) => createMetaItem(movie.title, formatDate(movie.drawnAt))));
+  elements.seenList.replaceChildren(...list.map(createSeenMovieCard));
+}
+
+async function rateSeenMovie(key, rating) {
+  if (!currentUser) return;
+  await set(ref(db, `draw/history/${key}/ratings/${currentUser.id}`), rating);
 }
 
 function renderProfile() {
@@ -512,7 +572,7 @@ onValue(ref(db, 'draw/lastDrawn'), (snapshot) => {
 
 onValue(ref(db, 'draw/history'), (snapshot) => {
   history = snapshot.val() || {};
-  if (currentUser) renderHistory();
+  if (currentUser) renderSeenMovies();
 });
 
 syncRouteFromHash();
