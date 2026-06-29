@@ -17,6 +17,7 @@ const tmdbToken = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI3MzBkNTBhZjI5YjNjMzFmOTE2NDJh
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const encoder = new TextEncoder();
+const storageKey = 'cinepaff_user';
 
 const elements = {
   authPage: document.querySelector('#authPage'),
@@ -82,29 +83,62 @@ async function hashPassword(password, salt = crypto.getRandomValues(new Uint8Arr
   return { salt: bytesToHex(salt), hash: bytesToHex(new Uint8Array(bits)) };
 }
 
-function readStoredUser() {
+function isStoredUser(user) {
+  return Boolean(user && typeof user.id === 'string');
+}
+
+function getStorage(type) {
   try {
-    return JSON.parse(localStorage.getItem('cinepaff_user'));
+    return window[type];
   } catch {
-    return memoryUser;
+    return null;
   }
 }
 
-function storeCurrentUser() {
+function readStorage(storage) {
+  if (!storage) return null;
   try {
-    localStorage.setItem('cinepaff_user', JSON.stringify(currentUser));
+    const storedUser = JSON.parse(storage.getItem(storageKey));
+    return isStoredUser(storedUser) ? storedUser : null;
   } catch {
-    memoryUser = currentUser;
+    return null;
   }
+}
+
+function writeStorage(storage, user) {
+  if (!storage) return false;
+  try {
+    storage.setItem(storageKey, JSON.stringify(user));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function removeStorage(storage) {
+  if (!storage) return;
+  try {
+    storage.removeItem(storageKey);
+  } catch {
+    // Ignore storage errors so logout still works.
+  }
+}
+
+function readStoredUser() {
+  return readStorage(getStorage('localStorage')) || readStorage(getStorage('sessionStorage')) || memoryUser;
+}
+
+function storeCurrentUser() {
+  if (!currentUser) return;
+  memoryUser = currentUser;
+  const stored = writeStorage(getStorage('localStorage'), currentUser);
+  if (!stored) writeStorage(getStorage('sessionStorage'), currentUser);
 }
 
 function clearStoredUser() {
   memoryUser = null;
-  try {
-    localStorage.removeItem('cinepaff_user');
-  } catch {
-    // Ignore storage errors so logout still works.
-  }
+  removeStorage(getStorage('localStorage'));
+  removeStorage(getStorage('sessionStorage'));
 }
 
 function goHome() {
