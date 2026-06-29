@@ -51,6 +51,7 @@ const elements = {
   historyList: document.querySelector('#historyList'),
   profileDetails: document.querySelector('#profileDetails'),
   cinemaActions: document.querySelectorAll('.cinema-actions'),
+  cinemaShares: document.querySelector('#cinemaShares'),
   startCinemaButton: document.querySelector('#startCinemaButton'),
   stopCinemaButton: document.querySelector('#stopCinemaButton'),
   cinemaScreen: document.querySelector('#cinemaScreen'),
@@ -67,7 +68,7 @@ let users = {};
 let draw = null;
 let history = {};
 let route = 'home';
-let cinema = null;
+let cinema = {};
 let cinemaSessionKey = null;
 let cinemaStream = null;
 let cinemaPeer = null;
@@ -237,7 +238,6 @@ function render() {
   storeCurrentUser();
   elements.currentUser.textContent = currentUser.id;
   elements.adminTabs.forEach((tab) => tab.classList.toggle('hidden', !currentUser.isAdmin));
-  elements.cinemaActions.forEach((action) => action.classList.toggle('hidden', !currentUser.isAdmin));
   syncRouteFromHash();
   renderMovies();
   renderUsers();
@@ -352,7 +352,7 @@ function resetCinemaVideo() {
 
 function setCinemaStream(stream) {
   elements.cinemaVideo.srcObject = stream;
-  elements.cinemaVideo.muted = currentUser?.isAdmin && cinemaConnectionRole === 'admin';
+  elements.cinemaVideo.muted = cinemaConnectionRole === 'admin';
   elements.cinemaVideo.play().catch(() => {
     // Ignore autoplay restrictions; the stream remains attached to the video element.
   });
@@ -386,10 +386,11 @@ function stopLocalCinemaStream() {
 
 function renderCinema() {
   const isSharing = Boolean(cinemaStream);
-  const isCinemaActive = Boolean(cinema?.active);
-  elements.startCinemaButton.disabled = isSharing || isCinemaActive;
+  const sessions = activeCinemaSessions();
+  elements.startCinemaButton.disabled = isSharing;
   elements.stopCinemaButton.disabled = !isSharing;
-  if (!isCinemaActive && !isSharing) {
+  elements.cinemaShares.replaceChildren(...sessions.map(createCinemaShareItem));
+  if (!sessions.length && !isSharing) {
     resetCinemaVideo();
     setCinemaMessage('');
   }
@@ -422,8 +423,26 @@ function createCinemaPeer(localCandidatePath) {
   return peer;
 }
 
+function activeCinemaSessions() {
+  return Object.entries(cinema || {})
+    .map(([key, session]) => ({ key, ...session }))
+    .filter((session) => session.active)
+    .sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0));
+}
+
+function createCinemaShareItem(session) {
+  const item = createMetaItem(session.startedBy || '', formatDate(session.startedAt));
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = cinemaConnectionRole === 'viewer' && cinemaJoinedSessionKey === session.key ? 'Connecté' : 'Rejoindre';
+  button.disabled = Boolean(cinemaStream) || session.key === cinemaSessionKey || (cinemaConnectionRole === 'viewer' && cinemaJoinedSessionKey === session.key);
+  button.addEventListener('click', () => joinCinema(session.key));
+  item.append(button);
+  return item;
+}
+
 async function startCinemaShare() {
-  if (!currentUser?.isAdmin || cinemaStream || cinema?.active) return;
+  if (!currentUser || cinemaStream) return;
   setCinemaMessage('');
   try {
     cinemaStream = await navigator.mediaDevices.getDisplayMedia({
@@ -445,7 +464,6 @@ async function startCinemaShare() {
   cinemaConnectionRole = 'admin';
   cinemaSessionKey = push(ref(db, 'cinema/sessions')).key;
   await set(ref(db, `cinema/sessions/${cinemaSessionKey}`), { active: true, startedAt: Date.now(), startedBy: currentUser.id });
-  await set(ref(db, 'cinema/current'), { active: true, sessionKey: cinemaSessionKey, startedAt: Date.now(), startedBy: currentUser.id });
 
   setCinemaStream(cinemaStream);
   cinemaStream.getVideoTracks()[0]?.addEventListener('ended', stopCinemaShare);
@@ -453,12 +471,12 @@ async function startCinemaShare() {
 }
 
 async function stopCinemaShare() {
-  const sessionKey = cinemaSessionKey || cinema?.sessionKey;
+  const sessionKey = cinemaSessionKey;
   closeCinemaPeer();
   stopLocalCinemaStream();
   resetCinemaVideo();
   if (sessionKey) await remove(ref(db, `cinema/sessions/${sessionKey}`));
-  await remove(ref(db, 'cinema/current'));
+  cinemaSessionKey = null;
   renderCinema();
 }
 
@@ -509,19 +527,12 @@ async function joinCinema(sessionKey) {
 }
 
 function handleCinemaState() {
-  if (!cinema?.active) {
-    if (!cinemaStream) {
-      closeCinemaPeer();
-      resetCinemaVideo();
-    }
-    renderCinema();
-    return;
+  if (cinemaStream && cinemaSessionKey && cinema[cinemaSessionKey]) {
+    watchCinemaAnswers(cinemaSessionKey);
   }
-  cinemaSessionKey = cinema.sessionKey;
-  if (cinemaStream) {
-    watchCinemaAnswers(cinema.sessionKey);
-  } else {
-    joinCinema(cinema.sessionKey);
+  if (cinemaConnectionRole === 'viewer' && cinemaJoinedSessionKey && !cinema[cinemaJoinedSessionKey]) {
+    closeCinemaPeer();
+    resetCinemaVideo();
   }
   renderCinema();
 }
@@ -678,9 +689,11 @@ elements.tabs.forEach((tab) => {
 window.addEventListener('hashchange', syncRouteFromHash);
 
 elements.logoutButton.addEventListener('click', () => {
+  const sessionKey = cinemaSessionKey;
   clearStoredUser();
   closeCinemaPeer();
   stopLocalCinemaStream();
+  if (sessionKey) remove(ref(db, `cinema/sessions/${sessionKey}`));
   resetCinemaVideo();
   currentUser = null;
   render();
@@ -709,8 +722,8 @@ onValue(ref(db, 'draw/history'), (snapshot) => {
   history = snapshot.val() || {};
   if (currentUser) renderHistory();
 });
-onValue(ref(db, 'cinema/current'), (snapshot) => {
-  cinema = snapshot.val();
+onValue(ref(db, 'cinema/sessions'), (snapshot) => {
+  cinema = snapshot.val() || {};
   if (currentUser) handleCinemaState();
 });
 

@@ -210,3 +210,4 @@ small { color: var(--muted); }
   .cinema-actions { flex-direction: column; }
   .cinema-screen, .cinema-screen video { min-height: 260px; }
 }
+.cinema-shares { margin-bottom: 12px; }
