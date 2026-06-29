@@ -8,9 +8,9 @@
   </head>
   <body>
     <main class="page auth-page" id="authPage">
-      <section class="card auth-card">
+      <section class="auth-shell" aria-label="Authentification">
         <h1 class="brand"><img src="./image/Logo.png" alt="CinéPaff" /></h1>
-        <form id="authForm">
+        <form id="authForm" class="auth-form">
           <input id="identifier" placeholder="ID" autocomplete="username" />
           <input id="password" placeholder="MDP" type="password" autocomplete="current-password" />
           <p class="error" id="authError"></p>
@@ -23,7 +23,7 @@
     <main class="page app-page hidden" id="appPage">
       <header class="topbar">
         <h1 class="brand brand--topbar"><img src="./image/Logo.png" alt="CinéPaff" /></h1>
-        <div>
+        <div class="session">
           <span id="currentUser"></span>
           <button id="logoutButton">Déconnexion</button>
         </div>
@@ -37,55 +37,73 @@
       </nav>
 
       <section class="view" id="homeView" data-view="home">
-        <div class="grid">
-          <div class="card">
-            <h2>Proposer un film</h2>
+        <div class="home-layout">
+          <section class="panel proposal-panel">
+            <div class="panel-head">
+              <h2>Proposer un film</h2>
+            </div>
             <form class="search" id="searchForm">
               <input id="movieQuery" placeholder="Film" />
               <button type="submit">Rechercher</button>
             </form>
             <p class="message" id="message"></p>
             <div class="results" id="results"></div>
-          </div>
+          </section>
 
-          <div class="card">
-            <h2>Films proposés</h2>
-            <div class="list" id="movieList"></div>
-          </div>
+          <section class="panel slate-panel">
+            <div class="panel-head">
+              <h2>Films proposés</h2>
+            </div>
+            <div class="poster-grid" id="movieList"></div>
+          </section>
         </div>
       </section>
 
       <section class="view hidden" id="drawsView" data-view="draws">
-        <div class="grid">
-          <div class="card admin" id="adminPanel">
-            <h2>Tirages</h2>
-            <button id="drawButton">Lancer le tirage</button>
-            <div class="winner hidden" id="winnerCard">
-              <h2>Film tiré</h2>
-              <strong id="winnerTitle"></strong>
-              <small id="winnerUser"></small>
+        <div class="draw-layout">
+          <section class="panel draw-panel" id="adminPanel">
+            <div class="panel-head">
+              <h2>Tirages</h2>
+              <button id="drawButton">Lancer le tirage</button>
             </div>
-          </div>
+            <div class="draw-stage" id="drawStage" aria-live="polite">
+              <div class="cover-stack" id="coverStack"></div>
+              <div class="winner hidden" id="winnerCard">
+                <div class="winner-poster" id="winnerPoster"></div>
+                <div>
+                  <h2>Film tiré</h2>
+                  <strong id="winnerTitle"></strong>
+                  <small id="winnerUser"></small>
+                </div>
+              </div>
+            </div>
+          </section>
 
-          <div class="card admin" id="usersPanel">
-            <h2>Admin</h2>
+          <section class="panel admin-panel" id="usersPanel">
+            <div class="panel-head">
+              <h2>Admin</h2>
+            </div>
             <div class="list" id="userList"></div>
-          </div>
+          </section>
         </div>
       </section>
 
       <section class="view hidden" id="historyView" data-view="history">
-        <div class="card">
-          <h2>Historique</h2>
+        <section class="panel compact-panel">
+          <div class="panel-head">
+            <h2>Historique</h2>
+          </div>
           <div class="list" id="historyList"></div>
-        </div>
+        </section>
       </section>
 
       <section class="view hidden" id="profileView" data-view="profile">
-        <div class="card profile-card">
-          <h2>Profil</h2>
+        <section class="panel compact-panel">
+          <div class="panel-head">
+            <h2>Profil</h2>
+          </div>
           <div class="list" id="profileDetails"></div>
-        </div>
+        </section>
       </section>
     </main>
 

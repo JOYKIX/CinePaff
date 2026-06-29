@@ -37,6 +37,9 @@ const elements = {
   winnerCard: document.querySelector('#winnerCard'),
   winnerTitle: document.querySelector('#winnerTitle'),
   winnerUser: document.querySelector('#winnerUser'),
+  winnerPoster: document.querySelector('#winnerPoster'),
+  drawStage: document.querySelector('#drawStage'),
+  coverStack: document.querySelector('#coverStack'),
   tabs: document.querySelectorAll('.tab'),
   adminTabs: document.querySelectorAll('.admin-only'),
   views: document.querySelectorAll('.view'),
@@ -183,6 +186,10 @@ function render() {
   renderProfile();
 }
 
+function posterUrl(path, size = 'w342') {
+  return path ? `https://image.tmdb.org/t/p/${size}${path}` : '';
+}
+
 function renderMovies() {
   const list = movieArray().sort((a, b) => a.createdAt - b.createdAt);
   const ownMovie = proposedMovie();
@@ -190,13 +197,28 @@ function renderMovies() {
   elements.searchForm.classList.toggle('hidden', Boolean(ownMovie));
   elements.message.textContent = ownMovie ? 'Film proposé' : '';
   elements.movieList.replaceChildren(...list.map((movie) => {
-    const item = document.createElement('div');
-    item.className = 'list-item';
-    const title = document.createElement('span');
+    const item = document.createElement('article');
+    item.className = 'poster-card';
+    const imageUrl = posterUrl(movie.posterPath);
+    if (imageUrl) {
+      const image = document.createElement('img');
+      image.src = imageUrl;
+      image.alt = '';
+      item.append(image);
+    } else {
+      const fallback = document.createElement('div');
+      fallback.className = 'poster-card__fallback';
+      fallback.textContent = movie.title;
+      item.append(fallback);
+    }
+    const meta = document.createElement('div');
+    meta.className = 'poster-card__meta';
+    const title = document.createElement('strong');
     title.textContent = movie.title;
     const proposedBy = document.createElement('small');
     proposedBy.textContent = movie.proposedBy;
-    item.append(title, proposedBy);
+    meta.append(title, proposedBy);
+    item.append(meta);
     return item;
   }));
 }
@@ -226,6 +248,14 @@ function renderDraw() {
   elements.winnerCard.classList.toggle('hidden', !draw);
   elements.winnerTitle.textContent = draw?.title || '';
   elements.winnerUser.textContent = draw?.proposedBy || '';
+  elements.winnerPoster.replaceChildren();
+  const imageUrl = posterUrl(draw?.posterPath, 'w500');
+  if (imageUrl) {
+    const image = document.createElement('img');
+    image.src = imageUrl;
+    image.alt = '';
+    elements.winnerPoster.append(image);
+  }
 }
 
 function renderHistory() {
@@ -322,12 +352,48 @@ async function proposeMovie(movie) {
   elements.message.textContent = 'Film proposé';
 }
 
+function buildDrawCovers(list) {
+  const covers = list.filter((movie) => movie.posterPath);
+  const pool = covers.length ? covers : list;
+  const count = Math.min(Math.max(pool.length * 2, 8), 18);
+  const nodes = Array.from({ length: count }, (_, index) => {
+    const movie = pool[index % pool.length];
+    const image = document.createElement('img');
+    image.className = 'draw-cover';
+    image.src = posterUrl(movie.posterPath, 'w342') || './image/Logo.png';
+    image.alt = '';
+    image.style.setProperty('--angle', `${(360 / count) * index}deg`);
+    image.style.setProperty('--radius', `${170 + (index % 3) * 34}px`);
+    image.style.setProperty('--delay', `${index * 42}ms`);
+    return image;
+  });
+  elements.coverStack.replaceChildren(...nodes);
+}
+
+function playDrawAnimation(list) {
+  buildDrawCovers(list);
+  elements.winnerCard.classList.add('hidden');
+  elements.drawStage.classList.remove('is-drawing');
+  void elements.drawStage.offsetWidth;
+  elements.drawStage.classList.add('is-drawing');
+  return new Promise((resolve) => {
+    window.setTimeout(() => {
+      elements.drawStage.classList.remove('is-drawing');
+      elements.coverStack.replaceChildren();
+      resolve();
+    }, 1900);
+  });
+}
+
 async function drawMovie() {
   const list = movieArray();
-  if (!currentUser?.isAdmin || !list.length) return;
+  if (!currentUser?.isAdmin || !list.length || elements.drawButton.disabled) return;
+  elements.drawButton.disabled = true;
+  await playDrawAnimation(list);
   const selected = { ...list[Math.floor(Math.random() * list.length)], drawnAt: Date.now() };
   await set(ref(db, 'draw/current'), selected);
   await push(ref(db, 'draw/history'), selected);
+  elements.drawButton.disabled = false;
 }
 
 elements.authForm.addEventListener('submit', handleAuth);
