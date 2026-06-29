@@ -11,8 +11,8 @@
       <section class="auth-shell" aria-label="Authentification">
         <h1 class="brand"><img src="./image/Logo.png" alt="Grand PAFF" /></h1>
         <form id="authForm" class="auth-form">
-          <input id="identifier" placeholder="ID" autocomplete="username" />
-          <input id="password" placeholder="MDP" type="password" autocomplete="current-password" />
+          <input id="identifier" placeholder="ID" autocomplete="username" aria-label="ID" />
+          <input id="password" placeholder="MDP" type="password" autocomplete="current-password" aria-label="MDP" />
           <p class="error" id="authError"></p>
           <button id="authSubmit" type="submit">Connexion</button>
         </form>
@@ -45,7 +45,7 @@
               <section class="proposal-panel">
                 <div class="section-kicker">Proposer</div>
                 <form class="search" id="searchForm">
-                  <input id="movieQuery" placeholder="Film" />
+                  <input id="movieQuery" placeholder="Film" aria-label="Film" />
                   <button type="submit">Rechercher</button>
                 </form>
                 <p class="message" id="message"></p>
