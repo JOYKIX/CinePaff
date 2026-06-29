@@ -76,6 +76,7 @@ let cinemaAnswerUnsubscribe = null;
 let cinemaRemoteCandidateUnsubscribe = null;
 let cinemaOfferUnsubscribe = null;
 let cinemaConnectionRole = null;
+let cinemaJoinedSessionKey = null;
 
 const rtcConfig = {
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
@@ -374,6 +375,7 @@ function closeCinemaPeer() {
   if (cinemaPeer) cinemaPeer.close();
   cinemaPeer = null;
   cinemaConnectionRole = null;
+  cinemaJoinedSessionKey = null;
 }
 
 function stopLocalCinemaStream() {
@@ -384,9 +386,10 @@ function stopLocalCinemaStream() {
 
 function renderCinema() {
   const isSharing = Boolean(cinemaStream);
-  elements.startCinemaButton.disabled = isSharing;
+  const isCinemaActive = Boolean(cinema?.active);
+  elements.startCinemaButton.disabled = isSharing || isCinemaActive;
   elements.stopCinemaButton.disabled = !isSharing;
-  if (!cinema?.active && !isSharing) {
+  if (!isCinemaActive && !isSharing) {
     resetCinemaVideo();
     setCinemaMessage('');
   }
@@ -420,7 +423,7 @@ function createCinemaPeer(localCandidatePath) {
 }
 
 async function startCinemaShare() {
-  if (!currentUser?.isAdmin || cinemaStream) return;
+  if (!currentUser?.isAdmin || cinemaStream || cinema?.active) return;
   setCinemaMessage('');
   try {
     cinemaStream = await navigator.mediaDevices.getDisplayMedia({
@@ -487,9 +490,10 @@ function watchCinemaAnswers(sessionKey) {
 }
 
 async function joinCinema(sessionKey) {
-  if (!currentUser || currentUser.isAdmin || cinemaConnectionRole === 'viewer' || !sessionKey) return;
+  if (!currentUser || !sessionKey || (cinemaConnectionRole === 'viewer' && cinemaJoinedSessionKey === sessionKey)) return;
   closeCinemaPeer();
   cinemaConnectionRole = 'viewer';
+  cinemaJoinedSessionKey = sessionKey;
   const answerKey = push(ref(db, `cinema/sessions/${sessionKey}/answers`)).key;
   cinemaPeer = createCinemaPeer(`cinema/sessions/${sessionKey}/candidates/${answerKey}/viewer`);
   cinemaRemoteCandidateUnsubscribe = watchRemoteCandidates(`cinema/sessions/${sessionKey}/candidates/${answerKey}/admin`, cinemaPeer);
@@ -514,8 +518,11 @@ function handleCinemaState() {
     return;
   }
   cinemaSessionKey = cinema.sessionKey;
-  if (currentUser?.isAdmin && cinemaStream) watchCinemaAnswers(cinema.sessionKey);
-  if (!currentUser?.isAdmin) joinCinema(cinema.sessionKey);
+  if (cinemaStream) {
+    watchCinemaAnswers(cinema.sessionKey);
+  } else {
+    joinCinema(cinema.sessionKey);
+  }
   renderCinema();
 }
 
