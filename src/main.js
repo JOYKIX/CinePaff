@@ -16,6 +16,8 @@ const tmdbToken = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI3MzBkNTBhZjI5YjNjMzFmOTE2NDJh
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
+const encoder = new TextEncoder();
+
 const elements = {
   authPage: document.querySelector('#authPage'),
   appPage: document.querySelector('#appPage'),
@@ -44,19 +46,46 @@ let authMode = 'login';
 let currentUser = JSON.parse(localStorage.getItem('cinepaff_user'));
 let movies = {};
 let users = {};
+let draw = null;
 
 function normalizeId(id) {
-  return id.trim().toUpperCase();
+  return id.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
 }
 
-async function hashPassword(password) {
-  const data = new TextEncoder().encode(password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  return [...new Uint8Array(hashBuffer)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+function bytesToHex(bytes) {
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function hexToBytes(hex) {
+  return new Uint8Array(hex.match(/.{1,2}/g).map((byte) => parseInt(byte, 16)));
+}
+
+async function hashPassword(password, salt = crypto.getRandomValues(new Uint8Array(16))) {
+  const key = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt, iterations: 120000, hash: 'SHA-256' },
+    key,
+    256,
+  );
+  return { salt: bytesToHex(salt), hash: bytesToHex(new Uint8Array(bits)) };
+}
+
+async function passwordMatches(password, account) {
+  if (account.passwordSalt && account.passwordHash) {
+    const passwordData = await hashPassword(password, hexToBytes(account.passwordSalt));
+    return passwordData.hash === account.passwordHash;
+  }
+
+  const legacyHash = await crypto.subtle.digest('SHA-256', encoder.encode(password));
+  return bytesToHex(new Uint8Array(legacyHash)) === account.passwordHash;
 }
 
 function movieArray() {
   return Object.entries(movies).map(([key, movie]) => ({ key, ...movie }));
+}
+
+function proposedMovie() {
+  return movieArray().find((movie) => movie.proposedBy === currentUser?.id);
 }
 
 function render() {
@@ -64,15 +93,21 @@ function render() {
   elements.appPage.classList.toggle('hidden', !currentUser);
   if (!currentUser) return;
 
+  currentUser.isAdmin = Boolean(users[currentUser.id]?.isAdmin ?? currentUser.isAdmin);
+  localStorage.setItem('cinepaff_user', JSON.stringify(currentUser));
   elements.currentUser.textContent = currentUser.id;
   elements.adminPanel.classList.toggle('hidden', !currentUser.isAdmin);
   renderMovies();
   renderUsers();
+  renderDraw();
 }
 
 function renderMovies() {
-  const list = movieArray();
+  const list = movieArray().sort((a, b) => a.createdAt - b.createdAt);
+  const ownMovie = proposedMovie();
   elements.drawButton.disabled = list.length === 0;
+  elements.searchForm.classList.toggle('hidden', Boolean(ownMovie));
+  elements.message.textContent = ownMovie ? 'Film proposé' : '';
   elements.movieList.replaceChildren(...list.map((movie) => {
     const item = document.createElement('div');
     item.className = 'list-item';
@@ -86,7 +121,7 @@ function renderMovies() {
 }
 
 function renderUsers() {
-  const list = Object.entries(users).map(([id, data]) => ({ id, ...data }));
+  const list = Object.entries(users).map(([id, data]) => ({ id, ...data })).sort((a, b) => a.id.localeCompare(b.id));
   elements.userList.replaceChildren(...list.map((account) => {
     const item = document.createElement('div');
     item.className = 'list-item';
@@ -98,15 +133,18 @@ function renderUsers() {
     checkbox.checked = Boolean(account.isAdmin);
     checkbox.addEventListener('change', async () => {
       await update(ref(db, `users/${account.id}`), { isAdmin: checkbox.checked });
-      if (account.id === currentUser.id) {
-        currentUser = { ...currentUser, isAdmin: checkbox.checked };
-        localStorage.setItem('cinepaff_user', JSON.stringify(currentUser));
-      }
+      if (account.id === currentUser.id) currentUser = { ...currentUser, isAdmin: checkbox.checked };
     });
     label.append(checkbox, 'Admin');
     item.append(id, label);
     return item;
   }));
+}
+
+function renderDraw() {
+  elements.winnerCard.classList.toggle('hidden', !draw);
+  elements.winnerTitle.textContent = draw?.title || '';
+  elements.winnerUser.textContent = draw?.proposedBy || '';
 }
 
 async function handleAuth(event) {
@@ -118,18 +156,19 @@ async function handleAuth(event) {
 
   const userRef = ref(db, `users/${id}`);
   const snapshot = await get(userRef);
-  const passwordHash = await hashPassword(password);
 
   if (authMode === 'register') {
     if (snapshot.exists()) {
       elements.authError.textContent = 'ID déjà utilisé';
       return;
     }
-    const user = { passwordHash, isAdmin: false, createdAt: Date.now() };
+    const usersSnapshot = await get(ref(db, 'users'));
+    const passwordData = await hashPassword(password);
+    const user = { passwordHash: passwordData.hash, passwordSalt: passwordData.salt, isAdmin: !usersSnapshot.exists(), createdAt: Date.now() };
     await set(userRef, user);
     currentUser = { id, isAdmin: user.isAdmin };
   } else {
-    if (!snapshot.exists() || snapshot.val().passwordHash !== passwordHash) {
+    if (!snapshot.exists() || !(await passwordMatches(password, snapshot.val()))) {
       elements.authError.textContent = 'ID ou MDP incorrect';
       return;
     }
@@ -137,14 +176,17 @@ async function handleAuth(event) {
   }
 
   localStorage.setItem('cinepaff_user', JSON.stringify(currentUser));
+  elements.authForm.reset();
   render();
 }
 
 async function searchMovies(event) {
   event.preventDefault();
   elements.message.textContent = '';
-  if (!elements.movieQuery.value.trim()) return;
-  const response = await fetch(`https://api.themoviedb.org/3/search/movie?query=${encodeURIComponent(elements.movieQuery.value)}&language=fr-FR`, {
+  elements.results.replaceChildren();
+  const query = elements.movieQuery.value.trim();
+  if (!query) return;
+  const response = await fetch(`https://api.themoviedb.org/3/search/movie?query=${encodeURIComponent(query)}&language=fr-FR`, {
     headers: { Authorization: `Bearer ${tmdbToken}`, accept: 'application/json' },
   });
   const data = await response.json();
@@ -169,7 +211,7 @@ function createMovieButton(movie) {
 }
 
 async function proposeMovie(movie) {
-  if (movieArray().some((item) => item.proposedBy === currentUser.id)) {
+  if (proposedMovie()) {
     elements.message.textContent = 'Film déjà proposé';
     return;
   }
@@ -188,13 +230,15 @@ async function proposeMovie(movie) {
 
 async function drawMovie() {
   const list = movieArray();
-  if (!list.length) return;
+  if (!currentUser?.isAdmin || !list.length) return;
   await set(ref(db, 'draw/current'), { ...list[Math.floor(Math.random() * list.length)], drawnAt: Date.now() });
 }
 
 elements.authForm.addEventListener('submit', handleAuth);
 elements.authToggle.addEventListener('click', () => {
   authMode = authMode === 'login' ? 'register' : 'login';
+  elements.authError.textContent = '';
+  elements.authForm.reset();
   elements.authSubmit.textContent = authMode === 'login' ? 'Connexion' : 'Créer un compte';
   elements.authToggle.textContent = authMode === 'login' ? 'Créer un compte' : 'Connexion';
   elements.password.autocomplete = authMode === 'login' ? 'current-password' : 'new-password';
@@ -209,17 +253,15 @@ elements.drawButton.addEventListener('click', drawMovie);
 
 onValue(ref(db, 'movies'), (snapshot) => {
   movies = snapshot.val() || {};
-  renderMovies();
+  if (currentUser) renderMovies();
 });
 onValue(ref(db, 'users'), (snapshot) => {
   users = snapshot.val() || {};
-  renderUsers();
+  render();
 });
 onValue(ref(db, 'draw/current'), (snapshot) => {
-  const winner = snapshot.val();
-  elements.winnerCard.classList.toggle('hidden', !winner);
-  elements.winnerTitle.textContent = winner?.title || '';
-  elements.winnerUser.textContent = winner?.proposedBy || '';
+  draw = snapshot.val();
+  if (currentUser) renderDraw();
 });
 
 render();
