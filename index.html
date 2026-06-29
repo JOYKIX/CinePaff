@@ -22,6 +22,7 @@
 
     <main class="page app-page hidden" id="appPage">
       <header class="topbar">
+        <div class="topbar-spacer" aria-hidden="true"></div>
         <h1 class="brand brand--topbar"><img src="./image/Logo.png" alt="CinéPaff" /></h1>
         <div class="session">
           <span id="currentUser"></span>
@@ -67,6 +68,7 @@
               <button id="drawButton">Lancer le tirage</button>
             </div>
             <div class="draw-stage" id="drawStage" aria-live="polite">
+              <div class="draw-marker" aria-hidden="true"></div>
               <div class="cover-stack" id="coverStack"></div>
               <div class="winner hidden" id="winnerCard">
                 <div class="winner-poster" id="winnerPoster"></div>
