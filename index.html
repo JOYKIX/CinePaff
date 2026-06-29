@@ -33,7 +33,7 @@
       <nav class="tabs" aria-label="Navigation">
         <button class="tab" type="button" data-route="home">Accueil</button>
         <button class="tab admin-only hidden" type="button" data-route="draws">Tirages</button>
-        <button class="tab" type="button" data-route="history">Historique</button>
+        <button class="tab" type="button" data-route="seen">Films vus</button>
         <button class="tab" type="button" data-route="profile">Profil</button>
       </nav>
 
@@ -90,12 +90,12 @@
         </div>
       </section>
 
-      <section class="view hidden" id="historyView" data-view="history">
-        <section class="panel compact-panel">
+      <section class="view hidden" id="seenView" data-view="seen">
+        <section class="panel">
           <div class="panel-head">
-            <h2>Historique</h2>
+            <h2>Films vus</h2>
           </div>
-          <div class="list" id="historyList"></div>
+          <div class="seen-grid" id="seenList"></div>
         </section>
       </section>
 
