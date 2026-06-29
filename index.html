@@ -22,13 +22,13 @@
 
     <main class="page app-page hidden" id="appPage">
       <div class="app-shell">
-        <header class="topbar">
-          <div class="topbar-spacer" aria-hidden="true"></div>
-          <h1 class="brand brand--topbar"><img src="./image/Logo.png" alt="Grand PAFF" /></h1>
-          <div class="session">
-            <span id="currentUser"></span>
-            <button id="logoutButton">Déconnexion</button>
-          </div>
+        <div class="session session--floating" aria-label="Utilisateur">
+          <span id="currentUser"></span>
+          <button id="logoutButton">Déconnexion</button>
+        </div>
+
+        <header class="hero">
+          <h1 class="brand brand--hero"><img src="./image/Logo.png" alt="Grand PAFF" /></h1>
         </header>
 
         <nav class="tabs" aria-label="Navigation">
@@ -41,10 +41,8 @@
         <div class="views-shell">
           <section class="view" id="homeView" data-view="home">
             <div class="home-layout">
-              <section class="panel proposal-panel">
-                <div class="panel-head">
-                  <h2>Proposer un film</h2>
-                </div>
+              <section class="proposal-panel">
+                <div class="section-kicker">Proposer un film</div>
                 <form class="search" id="searchForm">
                   <input id="movieQuery" placeholder="Film" />
                   <button type="submit">Rechercher</button>
@@ -53,10 +51,8 @@
                 <div class="results" id="results"></div>
               </section>
 
-              <section class="panel slate-panel">
-                <div class="panel-head">
-                  <h2>Films proposés</h2>
-                </div>
+              <section class="slate-panel">
+                <div class="section-kicker">Films proposés</div>
                 <div class="poster-grid" id="movieList"></div>
               </section>
             </div>
