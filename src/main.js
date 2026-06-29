@@ -49,7 +49,8 @@ const elements = {
 };
 
 let authMode = 'login';
-let currentUser = JSON.parse(localStorage.getItem('cinepaff_user'));
+let memoryUser = null;
+let currentUser = readStoredUser();
 let movies = {};
 let users = {};
 let draw = null;
@@ -76,6 +77,40 @@ async function hashPassword(password, salt = crypto.getRandomValues(new Uint8Arr
     256,
   );
   return { salt: bytesToHex(salt), hash: bytesToHex(new Uint8Array(bits)) };
+}
+
+function readStoredUser() {
+  try {
+    return JSON.parse(localStorage.getItem('cinepaff_user'));
+  } catch {
+    return memoryUser;
+  }
+}
+
+function storeCurrentUser() {
+  try {
+    localStorage.setItem('cinepaff_user', JSON.stringify(currentUser));
+  } catch {
+    memoryUser = currentUser;
+  }
+}
+
+function clearStoredUser() {
+  memoryUser = null;
+  try {
+    localStorage.removeItem('cinepaff_user');
+  } catch {
+    // Ignore storage errors so logout still works.
+  }
+}
+
+function goHome() {
+  route = 'home';
+  if (window.location.hash === '#home') {
+    setRoute('home');
+    return;
+  }
+  window.location.hash = 'home';
 }
 
 async function passwordMatches(password, account) {
@@ -137,7 +172,7 @@ function render() {
   if (!currentUser) return;
 
   currentUser.isAdmin = Boolean(users[currentUser.id]?.isAdmin ?? currentUser.isAdmin);
-  localStorage.setItem('cinepaff_user', JSON.stringify(currentUser));
+  storeCurrentUser();
   elements.currentUser.textContent = currentUser.id;
   elements.adminTabs.forEach((tab) => tab.classList.toggle('hidden', !currentUser.isAdmin));
   syncRouteFromHash();
@@ -233,8 +268,9 @@ async function handleAuth(event) {
     currentUser = { id, isAdmin: Boolean(snapshot.val().isAdmin) };
   }
 
-  localStorage.setItem('cinepaff_user', JSON.stringify(currentUser));
+  storeCurrentUser();
   elements.authForm.reset();
+  goHome();
   render();
 }
 
@@ -312,7 +348,7 @@ elements.tabs.forEach((tab) => {
 window.addEventListener('hashchange', syncRouteFromHash);
 
 elements.logoutButton.addEventListener('click', () => {
-  localStorage.removeItem('cinepaff_user');
+  clearStoredUser();
   currentUser = null;
   render();
 });
