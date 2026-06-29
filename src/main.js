@@ -1,5 +1,5 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js';
-import { getDatabase, ref, get, set, push, update, remove, onValue } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js';
+import { getDatabase, ref, get, set, push, update, remove, onValue, onChildAdded, off } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyCU6x9NpQofU3wuYVzd0QIhHVO9uO_WRNA',
@@ -50,6 +50,13 @@ const elements = {
   userList: document.querySelector('#userList'),
   historyList: document.querySelector('#historyList'),
   profileDetails: document.querySelector('#profileDetails'),
+  cinemaActions: document.querySelectorAll('.cinema-actions'),
+  startCinemaButton: document.querySelector('#startCinemaButton'),
+  stopCinemaButton: document.querySelector('#stopCinemaButton'),
+  cinemaScreen: document.querySelector('#cinemaScreen'),
+  cinemaVideo: document.querySelector('#cinemaVideo'),
+  fullscreenCinemaButton: document.querySelector('#fullscreenCinemaButton'),
+  cinemaMessage: document.querySelector('#cinemaMessage'),
 };
 
 let authMode = 'login';
@@ -60,6 +67,19 @@ let users = {};
 let draw = null;
 let history = {};
 let route = 'home';
+let cinema = null;
+let cinemaSessionKey = null;
+let cinemaStream = null;
+let cinemaPeer = null;
+let cinemaPeers = new Map();
+let cinemaAnswerUnsubscribe = null;
+let cinemaRemoteCandidateUnsubscribe = null;
+let cinemaOfferUnsubscribe = null;
+let cinemaConnectionRole = null;
+
+const rtcConfig = {
+  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+};
 
 function normalizeId(id) {
   return id.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
@@ -170,7 +190,7 @@ function setRoute(nextRoute) {
 
 function syncRouteFromHash() {
   const nextRoute = window.location.hash.replace('#', '') || 'home';
-  setRoute(['home', 'draws', 'history', 'profile'].includes(nextRoute) ? nextRoute : 'home');
+  setRoute(['home', 'draws', 'cinema', 'history', 'profile'].includes(nextRoute) ? nextRoute : 'home');
 }
 
 function formatDate(timestamp) {
@@ -216,12 +236,14 @@ function render() {
   storeCurrentUser();
   elements.currentUser.textContent = currentUser.id;
   elements.adminTabs.forEach((tab) => tab.classList.toggle('hidden', !currentUser.isAdmin));
+  elements.cinemaActions.forEach((action) => action.classList.toggle('hidden', !currentUser.isAdmin));
   syncRouteFromHash();
   renderMovies();
   renderUsers();
   renderDraw();
   renderHistory();
   renderProfile();
+  renderCinema();
 }
 
 function posterUrl(path, size = 'w342') {
@@ -315,6 +337,174 @@ function renderHistory() {
 function renderProfile() {
   const role = currentUser?.isAdmin ? 'Admin' : 'Utilisateur';
   elements.profileDetails.replaceChildren(createMetaItem(currentUser.id, role));
+}
+
+
+function setCinemaMessage(message = '') {
+  elements.cinemaMessage.textContent = message;
+}
+
+function resetCinemaVideo() {
+  elements.cinemaVideo.srcObject = null;
+  elements.fullscreenCinemaButton.disabled = true;
+}
+
+function setCinemaStream(stream) {
+  elements.cinemaVideo.srcObject = stream;
+  elements.cinemaVideo.muted = currentUser?.isAdmin && cinemaConnectionRole === 'admin';
+  elements.fullscreenCinemaButton.disabled = false;
+}
+
+function closeCinemaPeer() {
+  if (cinemaAnswerUnsubscribe) cinemaAnswerUnsubscribe();
+  if (cinemaRemoteCandidateUnsubscribe) cinemaRemoteCandidateUnsubscribe();
+  if (cinemaOfferUnsubscribe) cinemaOfferUnsubscribe();
+  cinemaPeers.forEach(({ peer, unsubscribeCandidates, unsubscribeAnswer }) => {
+    if (unsubscribeCandidates) unsubscribeCandidates();
+    if (unsubscribeAnswer) unsubscribeAnswer();
+    peer.close();
+  });
+  cinemaPeers = new Map();
+  cinemaAnswerUnsubscribe = null;
+  cinemaRemoteCandidateUnsubscribe = null;
+  cinemaOfferUnsubscribe = null;
+  if (cinemaPeer) cinemaPeer.close();
+  cinemaPeer = null;
+  cinemaConnectionRole = null;
+}
+
+function stopLocalCinemaStream() {
+  if (!cinemaStream) return;
+  cinemaStream.getTracks().forEach((track) => track.stop());
+  cinemaStream = null;
+}
+
+function renderCinema() {
+  const isSharing = Boolean(cinemaStream);
+  elements.startCinemaButton.disabled = isSharing;
+  elements.stopCinemaButton.disabled = !isSharing;
+  if (!cinema?.active && !isSharing) {
+    resetCinemaVideo();
+    setCinemaMessage('');
+  }
+}
+
+async function addIceCandidate(peer, candidate) {
+  if (!peer || !candidate) return;
+  try {
+    await peer.addIceCandidate(new RTCIceCandidate(candidate));
+  } catch {
+    // Ignore candidates that arrive after a closed connection.
+  }
+}
+
+function watchRemoteCandidates(path, peer) {
+  const candidatesRef = ref(db, path);
+  const callback = onChildAdded(candidatesRef, (snapshot) => addIceCandidate(peer, snapshot.val()));
+  return () => off(candidatesRef, 'child_added', callback);
+}
+
+function createCinemaPeer(localCandidatePath) {
+  const peer = new RTCPeerConnection(rtcConfig);
+  peer.addEventListener('icecandidate', (event) => {
+    if (event.candidate) push(ref(db, localCandidatePath), event.candidate.toJSON());
+  });
+  peer.addEventListener('track', (event) => {
+    const [stream] = event.streams;
+    if (stream) setCinemaStream(stream);
+  });
+  return peer;
+}
+
+async function startCinemaShare() {
+  if (!currentUser?.isAdmin || cinemaStream) return;
+  setCinemaMessage('');
+  try {
+    cinemaStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+  } catch {
+    setCinemaMessage('Partage annulé');
+    return;
+  }
+
+  closeCinemaPeer();
+  cinemaConnectionRole = 'admin';
+  cinemaSessionKey = push(ref(db, 'cinema/sessions')).key;
+  await set(ref(db, `cinema/sessions/${cinemaSessionKey}`), { active: true, startedAt: Date.now(), startedBy: currentUser.id });
+  await set(ref(db, 'cinema/current'), { active: true, sessionKey: cinemaSessionKey, startedAt: Date.now(), startedBy: currentUser.id });
+
+  setCinemaStream(cinemaStream);
+  cinemaStream.getVideoTracks()[0]?.addEventListener('ended', stopCinemaShare);
+  renderCinema();
+}
+
+async function stopCinemaShare() {
+  const sessionKey = cinemaSessionKey || cinema?.sessionKey;
+  closeCinemaPeer();
+  stopLocalCinemaStream();
+  resetCinemaVideo();
+  if (sessionKey) await remove(ref(db, `cinema/sessions/${sessionKey}`));
+  await remove(ref(db, 'cinema/current'));
+  renderCinema();
+}
+
+async function prepareCinemaOffer(sessionKey, answerKey) {
+  if (!cinemaStream || !sessionKey || !answerKey) return;
+  const existing = cinemaPeers.get(answerKey);
+  if (existing) return;
+  cinemaConnectionRole = 'admin';
+  const peer = createCinemaPeer(`cinema/sessions/${sessionKey}/candidates/${answerKey}/admin`);
+  cinemaStream.getTracks().forEach((track) => peer.addTrack(track, cinemaStream));
+  const unsubscribeCandidates = watchRemoteCandidates(`cinema/sessions/${sessionKey}/candidates/${answerKey}/viewer`, peer);
+  const unsubscribeAnswer = onValue(ref(db, `cinema/sessions/${sessionKey}/answers/${answerKey}/description`), async (snapshot) => {
+    const answer = snapshot.val();
+    if (answer && peer.signalingState === 'have-local-offer') await peer.setRemoteDescription(new RTCSessionDescription(answer));
+  });
+  cinemaPeers.set(answerKey, { peer, unsubscribeCandidates, unsubscribeAnswer });
+  const offer = await peer.createOffer();
+  await peer.setLocalDescription(offer);
+  await set(ref(db, `cinema/sessions/${sessionKey}/offers/${answerKey}`), offer.toJSON());
+}
+
+function watchCinemaAnswers(sessionKey) {
+  if (cinemaAnswerUnsubscribe) cinemaAnswerUnsubscribe();
+  const answersRef = ref(db, `cinema/sessions/${sessionKey}/answers`);
+  const callback = onChildAdded(answersRef, async (snapshot) => {
+    await prepareCinemaOffer(sessionKey, snapshot.key);
+  });
+  cinemaAnswerUnsubscribe = () => off(answersRef, 'child_added', callback);
+}
+
+async function joinCinema(sessionKey) {
+  if (!currentUser || currentUser.isAdmin || cinemaConnectionRole === 'viewer' || !sessionKey) return;
+  closeCinemaPeer();
+  cinemaConnectionRole = 'viewer';
+  const answerKey = push(ref(db, `cinema/sessions/${sessionKey}/answers`)).key;
+  cinemaPeer = createCinemaPeer(`cinema/sessions/${sessionKey}/candidates/${answerKey}/viewer`);
+  cinemaRemoteCandidateUnsubscribe = watchRemoteCandidates(`cinema/sessions/${sessionKey}/candidates/${answerKey}/admin`, cinemaPeer);
+  await set(ref(db, `cinema/sessions/${sessionKey}/answers/${answerKey}`), { requestedAt: Date.now(), userId: currentUser.id });
+  cinemaOfferUnsubscribe = onValue(ref(db, `cinema/sessions/${sessionKey}/offers/${answerKey}`), async (snapshot) => {
+    const offer = snapshot.val();
+    if (!offer || !cinemaPeer || cinemaPeer.currentRemoteDescription) return;
+    await cinemaPeer.setRemoteDescription(new RTCSessionDescription(offer));
+    const answer = await cinemaPeer.createAnswer();
+    await cinemaPeer.setLocalDescription(answer);
+    await set(ref(db, `cinema/sessions/${sessionKey}/answers/${answerKey}/description`), answer.toJSON());
+  });
+}
+
+function handleCinemaState() {
+  if (!cinema?.active) {
+    if (!cinemaStream) {
+      closeCinemaPeer();
+      resetCinemaVideo();
+    }
+    renderCinema();
+    return;
+  }
+  cinemaSessionKey = cinema.sessionKey;
+  if (currentUser?.isAdmin && cinemaStream) watchCinemaAnswers(cinema.sessionKey);
+  if (!currentUser?.isAdmin) joinCinema(cinema.sessionKey);
+  renderCinema();
 }
 
 async function handleAuth(event) {
@@ -470,11 +660,19 @@ window.addEventListener('hashchange', syncRouteFromHash);
 
 elements.logoutButton.addEventListener('click', () => {
   clearStoredUser();
+  closeCinemaPeer();
+  stopLocalCinemaStream();
+  resetCinemaVideo();
   currentUser = null;
   render();
 });
 elements.searchForm.addEventListener('submit', searchMovies);
 elements.drawButton.addEventListener('click', drawMovie);
+elements.startCinemaButton.addEventListener('click', startCinemaShare);
+elements.stopCinemaButton.addEventListener('click', stopCinemaShare);
+elements.fullscreenCinemaButton.addEventListener('click', () => {
+  if (elements.cinemaScreen.requestFullscreen) elements.cinemaScreen.requestFullscreen();
+});
 
 onValue(ref(db, 'movies'), (snapshot) => {
   movies = snapshot.val() || {};
@@ -491,6 +689,10 @@ onValue(ref(db, 'draw/current'), (snapshot) => {
 onValue(ref(db, 'draw/history'), (snapshot) => {
   history = snapshot.val() || {};
   if (currentUser) renderHistory();
+});
+onValue(ref(db, 'cinema/current'), (snapshot) => {
+  cinema = snapshot.val();
+  if (currentUser) handleCinemaState();
 });
 
 syncRouteFromHash();
