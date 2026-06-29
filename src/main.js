@@ -352,6 +352,9 @@ function resetCinemaVideo() {
 function setCinemaStream(stream) {
   elements.cinemaVideo.srcObject = stream;
   elements.cinemaVideo.muted = currentUser?.isAdmin && cinemaConnectionRole === 'admin';
+  elements.cinemaVideo.play().catch(() => {
+    // Ignore autoplay restrictions; the stream remains attached to the video element.
+  });
   elements.fullscreenCinemaButton.disabled = false;
 }
 
@@ -420,7 +423,16 @@ async function startCinemaShare() {
   if (!currentUser?.isAdmin || cinemaStream) return;
   setCinemaMessage('');
   try {
-    cinemaStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+    cinemaStream = await navigator.mediaDevices.getDisplayMedia({
+      video: true,
+      audio: {
+        autoGainControl: false,
+        echoCancellation: false,
+        noiseSuppression: false,
+      },
+      systemAudio: 'include',
+      windowAudio: 'system',
+    });
   } catch {
     setCinemaMessage('Partage annulé');
     return;
