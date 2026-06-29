@@ -406,26 +406,35 @@ async function deleteMovie(key) {
   elements.message.textContent = '';
 }
 
-function buildDrawCovers(list) {
+function pickDrawMovie(list) {
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+function buildDrawCovers(list, selected) {
   const covers = list.filter((movie) => movie.posterPath);
   const pool = covers.length ? covers : list;
-  const count = Math.min(Math.max(pool.length * 2, 8), 18);
+  const count = Math.min(Math.max(pool.length * 8, 26), 44);
+  const winnerIndex = Math.max(18, count - 8);
   const nodes = Array.from({ length: count }, (_, index) => {
-    const movie = pool[index % pool.length];
+    const movie = index === winnerIndex ? selected : pool[index % pool.length];
     const image = document.createElement('img');
     image.className = 'draw-cover';
     image.src = posterUrl(movie.posterPath, 'w342') || './image/Logo.png';
     image.alt = '';
-    image.style.setProperty('--angle', `${(360 / count) * index}deg`);
-    image.style.setProperty('--radius', `${170 + (index % 3) * 34}px`);
-    image.style.setProperty('--delay', `${index * 42}ms`);
     return image;
   });
   elements.coverStack.replaceChildren(...nodes);
+
+  const stageWidth = elements.drawStage.clientWidth;
+  const winnerNode = nodes[winnerIndex];
+  const winnerCenter = winnerNode.offsetLeft + (winnerNode.offsetWidth / 2);
+  const stopOffset = (stageWidth / 2) - winnerCenter;
+  elements.coverStack.style.setProperty('--track-start', `${stageWidth}px`);
+  elements.coverStack.style.setProperty('--track-end', `${stopOffset}px`);
 }
 
-function playDrawAnimation(list) {
-  buildDrawCovers(list);
+function playDrawAnimation(list, selected) {
+  buildDrawCovers(list, selected);
   elements.winnerCard.classList.add('hidden');
   elements.drawStage.classList.remove('is-drawing');
   void elements.drawStage.offsetWidth;
@@ -434,8 +443,10 @@ function playDrawAnimation(list) {
     window.setTimeout(() => {
       elements.drawStage.classList.remove('is-drawing');
       elements.coverStack.replaceChildren();
+      elements.coverStack.style.removeProperty('--track-start');
+      elements.coverStack.style.removeProperty('--track-end');
       resolve();
-    }, 1900);
+    }, 5400);
   });
 }
 
@@ -443,8 +454,8 @@ async function drawMovie() {
   const list = movieArray();
   if (!currentUser?.isAdmin || !list.length || elements.drawButton.disabled) return;
   elements.drawButton.disabled = true;
-  await playDrawAnimation(list);
-  const selected = { ...list[Math.floor(Math.random() * list.length)], drawnAt: Date.now() };
+  const selected = { ...pickDrawMovie(list), drawnAt: Date.now() };
+  await playDrawAnimation(list, selected);
   await set(ref(db, 'draw/current'), selected);
   await push(ref(db, 'draw/history'), selected);
   await remove(ref(db, 'movies'));
