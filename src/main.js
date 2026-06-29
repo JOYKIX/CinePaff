@@ -30,6 +30,9 @@ const elements = {
   authToggle: document.querySelector('#authToggle'),
   currentUser: document.querySelector('#currentUser'),
   logoutButton: document.querySelector('#logoutButton'),
+  menuToggle: document.querySelector('#menuToggle'),
+  mainNav: document.querySelector('#mainNav'),
+  navBackdrop: document.querySelector('#navBackdrop'),
   searchForm: document.querySelector('#searchForm'),
   movieQuery: document.querySelector('#movieQuery'),
   message: document.querySelector('#message'),
@@ -60,6 +63,7 @@ let users = {};
 let draw = null;
 let history = {};
 let route = 'home';
+let isMenuOpen = false;
 
 function normalizeId(id) {
   return id.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
@@ -141,6 +145,17 @@ function clearStoredUser() {
   removeStorage(getStorage('sessionStorage'));
 }
 
+
+function setMenuOpen(isOpen) {
+  isMenuOpen = isOpen;
+  elements.appPage.classList.toggle('menu-open', isMenuOpen);
+  elements.menuToggle.setAttribute('aria-expanded', String(isMenuOpen));
+}
+
+function closeMenu() {
+  setMenuOpen(false);
+}
+
 function goHome() {
   route = 'home';
   if (window.location.hash === '#home') {
@@ -210,7 +225,10 @@ function canProposeMovie() {
 function render() {
   elements.authPage.classList.toggle('hidden', Boolean(currentUser));
   elements.appPage.classList.toggle('hidden', !currentUser);
-  if (!currentUser) return;
+  if (!currentUser) {
+    closeMenu();
+    return;
+  }
 
   currentUser.isAdmin = Boolean(users[currentUser.id]?.isAdmin ?? currentUser.isAdmin);
   storeCurrentUser();
@@ -464,13 +482,17 @@ elements.tabs.forEach((tab) => {
   tab.addEventListener('click', () => {
     window.location.hash = tab.dataset.route;
     setRoute(tab.dataset.route);
+    closeMenu();
   });
 });
+elements.menuToggle.addEventListener('click', () => setMenuOpen(!isMenuOpen));
+elements.navBackdrop.addEventListener('click', closeMenu);
 window.addEventListener('hashchange', syncRouteFromHash);
 
 elements.logoutButton.addEventListener('click', () => {
   clearStoredUser();
   currentUser = null;
+  closeMenu();
   render();
 });
 elements.searchForm.addEventListener('submit', searchMovies);

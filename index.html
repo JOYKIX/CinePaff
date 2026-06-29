@@ -23,18 +23,25 @@
     <main class="page app-page hidden" id="appPage">
       <header class="topbar">
         <h1 class="brand brand--topbar"><img src="./image/Logo.png" alt="CinéPaff" /></h1>
+        <button class="menu-toggle" id="menuToggle" type="button" aria-controls="mainNav" aria-expanded="false" aria-label="Menu">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
         <div class="session">
           <span id="currentUser"></span>
           <button id="logoutButton">Déconnexion</button>
         </div>
       </header>
 
-      <nav class="tabs" aria-label="Navigation">
+      <nav class="tabs" id="mainNav" aria-label="Navigation">
         <button class="tab" type="button" data-route="home">Accueil</button>
         <button class="tab admin-only hidden" type="button" data-route="draws">Tirages</button>
         <button class="tab" type="button" data-route="history">Historique</button>
         <button class="tab" type="button" data-route="profile">Profil</button>
       </nav>
+
+      <button class="nav-backdrop" id="navBackdrop" type="button" aria-label="Fermer le menu"></button>
 
       <section class="view" id="homeView" data-view="home">
         <div class="home-layout">
