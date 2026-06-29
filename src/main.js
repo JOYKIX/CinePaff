@@ -49,6 +49,13 @@ const elements = {
   drawButton: document.querySelector('#drawButton'),
   userList: document.querySelector('#userList'),
   seenList: document.querySelector('#seenList'),
+  ratingModal: document.querySelector('#ratingModal'),
+  ratingModalBackdrop: document.querySelector('#ratingModalBackdrop'),
+  ratingModalClose: document.querySelector('#ratingModalClose'),
+  ratingModalTitle: document.querySelector('#ratingModalTitle'),
+  ratingModalAverage: document.querySelector('#ratingModalAverage'),
+  ratingModalPoster: document.querySelector('#ratingModalPoster'),
+  ratingModalStars: document.querySelector('#ratingModalStars'),
   profileDetails: document.querySelector('#profileDetails'),
 };
 
@@ -61,6 +68,7 @@ let draw = null;
 let lastDrawn = null;
 let history = {};
 let route = 'home';
+let activeSeenMovie = null;
 
 function normalizeId(id) {
   return id.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
@@ -321,6 +329,33 @@ function getAverageRating(movie) {
   return average.toFixed(1);
 }
 
+function getSeenMovieId(movie) {
+  return movie.tmdbId || `${movie.title}-${movie.posterPath}`;
+}
+
+function seenMovieArray() {
+  const grouped = new Map();
+  Object.entries(history).forEach(([key, movie]) => {
+    if (!movie?.title) return;
+    const movieId = getSeenMovieId(movie);
+    const existing = grouped.get(movieId);
+    if (!existing) {
+      grouped.set(movieId, { key, ...movie, ratings: { ...(movie.ratings || {}) } });
+      return;
+    }
+
+    grouped.set(movieId, {
+      ...existing,
+      ...movie,
+      key: existing.key,
+      drawnAt: Math.max(existing.drawnAt || 0, movie.drawnAt || 0),
+      ratings: { ...(existing.ratings || {}), ...(movie.ratings || {}) },
+    });
+  });
+
+  return [...grouped.values()].sort((a, b) => (b.drawnAt || 0) - (a.drawnAt || 0));
+}
+
 function createRatingButton(movie, value) {
   const button = document.createElement('button');
   button.className = 'rating-button';
@@ -333,8 +368,10 @@ function createRatingButton(movie, value) {
 }
 
 function createSeenMovieCard(movie) {
-  const item = document.createElement('article');
+  const item = document.createElement('button');
   item.className = 'poster-card seen-card';
+  item.type = 'button';
+  item.addEventListener('click', () => openRatingModal(movie));
   const imageUrl = posterUrl(movie.posterPath);
   if (imageUrl) {
     const image = document.createElement('img');
@@ -354,22 +391,44 @@ function createSeenMovieCard(movie) {
   title.textContent = movie.title;
   const proposedBy = document.createElement('small');
   proposedBy.textContent = movie.proposedBy;
-  const average = document.createElement('small');
+  const average = document.createElement('span');
+  average.className = 'seen-card__rating';
   const averageRating = getAverageRating(movie);
-  average.textContent = averageRating ? `${averageRating}/5` : '';
-  const rating = document.createElement('div');
-  rating.className = 'rating';
-  rating.append(...[1, 2, 3, 4, 5].map((value) => createRatingButton(movie, value)));
-  meta.append(title, proposedBy, average, rating);
+  average.textContent = averageRating ? `${averageRating}/5` : '—/5';
+  meta.append(title, proposedBy, average);
   item.append(meta);
   return item;
 }
 
 function renderSeenMovies() {
-  const list = Object.entries(history)
-    .map(([key, movie]) => ({ key, ...movie }))
-    .sort((a, b) => (b.drawnAt || 0) - (a.drawnAt || 0));
+  const list = seenMovieArray();
   elements.seenList.replaceChildren(...list.map(createSeenMovieCard));
+  if (activeSeenMovie) {
+    const refreshedMovie = list.find((movie) => movie.key === activeSeenMovie.key);
+    if (refreshedMovie) openRatingModal(refreshedMovie);
+  }
+}
+
+function openRatingModal(movie) {
+  activeSeenMovie = movie;
+  elements.ratingModalTitle.textContent = movie.title;
+  const averageRating = getAverageRating(movie);
+  elements.ratingModalAverage.textContent = averageRating ? `${averageRating}/5` : '—/5';
+  elements.ratingModalPoster.replaceChildren();
+  const imageUrl = posterUrl(movie.posterPath, 'w500');
+  if (imageUrl) {
+    const image = document.createElement('img');
+    image.src = imageUrl;
+    image.alt = '';
+    elements.ratingModalPoster.append(image);
+  }
+  elements.ratingModalStars.replaceChildren(...[1, 2, 3, 4, 5].map((value) => createRatingButton(movie, value)));
+  elements.ratingModal.classList.remove('hidden');
+}
+
+function closeRatingModal() {
+  activeSeenMovie = null;
+  elements.ratingModal.classList.add('hidden');
 }
 
 async function rateSeenMovie(key, rating) {
@@ -552,6 +611,11 @@ elements.logoutButton.addEventListener('click', () => {
 });
 elements.searchForm.addEventListener('submit', searchMovies);
 elements.drawButton.addEventListener('click', drawMovie);
+elements.ratingModalBackdrop.addEventListener('click', closeRatingModal);
+elements.ratingModalClose.addEventListener('click', closeRatingModal);
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !elements.ratingModal.classList.contains('hidden')) closeRatingModal();
+});
 
 onValue(ref(db, 'movies'), (snapshot) => {
   movies = snapshot.val() || {};
