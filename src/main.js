@@ -1,5 +1,5 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js';
-import { getDatabase, ref, get, set, push, update, remove, onValue, onChildAdded, off } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js';
+import { getDatabase, ref, get, set, push, update, remove, onValue, onChildAdded } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyCU6x9NpQofU3wuYVzd0QIhHVO9uO_WRNA',
@@ -76,11 +76,16 @@ let cinemaPeers = new Map();
 let cinemaAnswerUnsubscribe = null;
 let cinemaRemoteCandidateUnsubscribe = null;
 let cinemaOfferUnsubscribe = null;
+let cinemaViewerAnswerKey = null;
 let cinemaConnectionRole = null;
 let cinemaJoinedSessionKey = null;
 
 const rtcConfig = {
-  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+  ],
 };
 
 function normalizeId(id) {
@@ -346,7 +351,10 @@ function setCinemaMessage(message = '') {
 }
 
 function resetCinemaVideo() {
+  elements.cinemaVideo.pause();
   elements.cinemaVideo.srcObject = null;
+  elements.cinemaVideo.removeAttribute('src');
+  elements.cinemaVideo.load();
   elements.fullscreenCinemaButton.disabled = true;
 }
 
@@ -360,6 +368,8 @@ function setCinemaStream(stream) {
 }
 
 function closeCinemaPeer() {
+  const joinedSessionKey = cinemaJoinedSessionKey;
+  const viewerAnswerKey = cinemaViewerAnswerKey;
   if (cinemaAnswerUnsubscribe) cinemaAnswerUnsubscribe();
   if (cinemaRemoteCandidateUnsubscribe) cinemaRemoteCandidateUnsubscribe();
   if (cinemaOfferUnsubscribe) cinemaOfferUnsubscribe();
@@ -374,8 +384,14 @@ function closeCinemaPeer() {
   cinemaOfferUnsubscribe = null;
   if (cinemaPeer) cinemaPeer.close();
   cinemaPeer = null;
+  cinemaViewerAnswerKey = null;
   cinemaConnectionRole = null;
   cinemaJoinedSessionKey = null;
+  if (joinedSessionKey && viewerAnswerKey) {
+    remove(ref(db, `cinema/sessions/${joinedSessionKey}/answers/${viewerAnswerKey}`));
+    remove(ref(db, `cinema/sessions/${joinedSessionKey}/offers/${viewerAnswerKey}`));
+    remove(ref(db, `cinema/sessions/${joinedSessionKey}/candidates/${viewerAnswerKey}`));
+  }
 }
 
 function stopLocalCinemaStream() {
@@ -396,8 +412,19 @@ function renderCinema() {
   }
 }
 
+async function flushPendingIceCandidates(peer) {
+  if (!peer?.remoteDescription || !peer.pendingIceCandidates?.length) return;
+  const pendingCandidates = peer.pendingIceCandidates.splice(0);
+  await Promise.all(pendingCandidates.map((candidate) => addIceCandidate(peer, candidate)));
+}
+
 async function addIceCandidate(peer, candidate) {
   if (!peer || !candidate) return;
+  if (!peer.remoteDescription) {
+    peer.pendingIceCandidates = peer.pendingIceCandidates || [];
+    peer.pendingIceCandidates.push(candidate);
+    return;
+  }
   try {
     await peer.addIceCandidate(new RTCIceCandidate(candidate));
   } catch {
@@ -407,12 +434,12 @@ async function addIceCandidate(peer, candidate) {
 
 function watchRemoteCandidates(path, peer) {
   const candidatesRef = ref(db, path);
-  const callback = onChildAdded(candidatesRef, (snapshot) => addIceCandidate(peer, snapshot.val()));
-  return () => off(candidatesRef, 'child_added', callback);
+  return onChildAdded(candidatesRef, (snapshot) => addIceCandidate(peer, snapshot.val()));
 }
 
 function createCinemaPeer(localCandidatePath) {
   const peer = new RTCPeerConnection(rtcConfig);
+  peer.pendingIceCandidates = [];
   peer.addEventListener('icecandidate', (event) => {
     if (event.candidate) push(ref(db, localCandidatePath), event.candidate.toJSON());
   });
@@ -467,6 +494,7 @@ async function startCinemaShare() {
 
   setCinemaStream(cinemaStream);
   cinemaStream.getVideoTracks()[0]?.addEventListener('ended', stopCinemaShare);
+  watchCinemaAnswers(cinemaSessionKey);
   renderCinema();
 }
 
@@ -490,7 +518,10 @@ async function prepareCinemaOffer(sessionKey, answerKey) {
   const unsubscribeCandidates = watchRemoteCandidates(`cinema/sessions/${sessionKey}/candidates/${answerKey}/viewer`, peer);
   const unsubscribeAnswer = onValue(ref(db, `cinema/sessions/${sessionKey}/answers/${answerKey}/description`), async (snapshot) => {
     const answer = snapshot.val();
-    if (answer && peer.signalingState === 'have-local-offer') await peer.setRemoteDescription(new RTCSessionDescription(answer));
+    if (answer && peer.signalingState === 'have-local-offer') {
+      await peer.setRemoteDescription(new RTCSessionDescription(answer));
+      await flushPendingIceCandidates(peer);
+    }
   });
   cinemaPeers.set(answerKey, { peer, unsubscribeCandidates, unsubscribeAnswer });
   const offer = await peer.createOffer();
@@ -501,10 +532,9 @@ async function prepareCinemaOffer(sessionKey, answerKey) {
 function watchCinemaAnswers(sessionKey) {
   if (cinemaAnswerUnsubscribe) cinemaAnswerUnsubscribe();
   const answersRef = ref(db, `cinema/sessions/${sessionKey}/answers`);
-  const callback = onChildAdded(answersRef, async (snapshot) => {
+  cinemaAnswerUnsubscribe = onChildAdded(answersRef, async (snapshot) => {
     await prepareCinemaOffer(sessionKey, snapshot.key);
   });
-  cinemaAnswerUnsubscribe = () => off(answersRef, 'child_added', callback);
 }
 
 async function joinCinema(sessionKey) {
@@ -513,6 +543,7 @@ async function joinCinema(sessionKey) {
   cinemaConnectionRole = 'viewer';
   cinemaJoinedSessionKey = sessionKey;
   const answerKey = push(ref(db, `cinema/sessions/${sessionKey}/answers`)).key;
+  cinemaViewerAnswerKey = answerKey;
   cinemaPeer = createCinemaPeer(`cinema/sessions/${sessionKey}/candidates/${answerKey}/viewer`);
   cinemaRemoteCandidateUnsubscribe = watchRemoteCandidates(`cinema/sessions/${sessionKey}/candidates/${answerKey}/admin`, cinemaPeer);
   await set(ref(db, `cinema/sessions/${sessionKey}/answers/${answerKey}`), { requestedAt: Date.now(), userId: currentUser.id });
@@ -520,6 +551,7 @@ async function joinCinema(sessionKey) {
     const offer = snapshot.val();
     if (!offer || !cinemaPeer || cinemaPeer.currentRemoteDescription) return;
     await cinemaPeer.setRemoteDescription(new RTCSessionDescription(offer));
+    await flushPendingIceCandidates(cinemaPeer);
     const answer = await cinemaPeer.createAnswer();
     await cinemaPeer.setLocalDescription(answer);
     await set(ref(db, `cinema/sessions/${sessionKey}/answers/${answerKey}/description`), answer.toJSON());
