@@ -58,6 +58,7 @@ let currentUser = readStoredUser();
 let movies = {};
 let users = {};
 let draw = null;
+let lastDrawn = null;
 let history = {};
 let route = 'home';
 
@@ -203,8 +204,12 @@ function proposedMovie() {
   return movieArray().find((movie) => movie.proposedBy === currentUser?.id);
 }
 
+function wasLastDrawnUser() {
+  return lastDrawn?.proposedBy === currentUser?.id;
+}
+
 function canProposeMovie() {
-  return currentUser?.isAdmin || !proposedMovie();
+  return !wasLastDrawnUser() && (currentUser?.isAdmin || !proposedMovie());
 }
 
 function render() {
@@ -234,7 +239,7 @@ function renderMovies() {
   const canPropose = canProposeMovie();
   elements.drawButton.disabled = list.length === 0;
   elements.searchForm.classList.toggle('hidden', !canPropose);
-  elements.message.textContent = ownMovie && !currentUser?.isAdmin ? 'Film proposé' : '';
+  elements.message.textContent = wasLastDrawnUser() ? 'Dernier tiré au sort' : ownMovie && !currentUser?.isAdmin ? 'Film proposé' : '';
   elements.movieList.replaceChildren(...list.map((movie) => {
     const item = document.createElement('article');
     item.className = 'poster-card';
@@ -383,7 +388,7 @@ function createMovieButton(movie) {
 
 async function proposeMovie(movie) {
   if (!canProposeMovie()) {
-    elements.message.textContent = 'Film déjà proposé';
+    elements.message.textContent = wasLastDrawnUser() ? 'Dernier tiré au sort' : 'Film déjà proposé';
     return;
   }
   await push(ref(db, 'movies'), {
@@ -457,6 +462,7 @@ async function drawMovie() {
   const selected = { ...pickDrawMovie(list), drawnAt: Date.now() };
   await playDrawAnimation(list, selected);
   await set(ref(db, 'draw/current'), selected);
+  await set(ref(db, 'draw/lastDrawn'), selected);
   await push(ref(db, 'draw/history'), selected);
   await remove(ref(db, 'movies'));
   elements.drawButton.disabled = false;
@@ -499,6 +505,11 @@ onValue(ref(db, 'draw/current'), (snapshot) => {
   draw = snapshot.val();
   if (currentUser) renderDraw();
 });
+onValue(ref(db, 'draw/lastDrawn'), (snapshot) => {
+  lastDrawn = snapshot.val();
+  if (currentUser) renderMovies();
+});
+
 onValue(ref(db, 'draw/history'), (snapshot) => {
   history = snapshot.val() || {};
   if (currentUser) renderHistory();
