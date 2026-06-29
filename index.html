@@ -20,7 +20,7 @@
       </section>
     </main>
 
-    <main class="page hidden" id="appPage">
+    <main class="page app-page hidden" id="appPage">
       <header class="topbar">
         <h1>CinéPaff</h1>
         <div>
@@ -29,32 +29,62 @@
         </div>
       </header>
 
-      <section class="grid">
+      <nav class="tabs" aria-label="Navigation">
+        <button class="tab" type="button" data-route="home">Accueil</button>
+        <button class="tab admin-only hidden" type="button" data-route="draws">Tirages</button>
+        <button class="tab" type="button" data-route="history">Historique</button>
+        <button class="tab" type="button" data-route="profile">Profil</button>
+      </nav>
+
+      <section class="view" id="homeView" data-view="home">
+        <div class="grid">
+          <div class="card">
+            <h2>Proposer un film</h2>
+            <form class="search" id="searchForm">
+              <input id="movieQuery" placeholder="Film" />
+              <button type="submit">Rechercher</button>
+            </form>
+            <p class="message" id="message"></p>
+            <div class="results" id="results"></div>
+          </div>
+
+          <div class="card">
+            <h2>Films proposés</h2>
+            <div class="list" id="movieList"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view hidden" id="drawsView" data-view="draws">
+        <div class="grid">
+          <div class="card admin" id="adminPanel">
+            <h2>Tirages</h2>
+            <button id="drawButton">Lancer le tirage</button>
+            <div class="winner hidden" id="winnerCard">
+              <h2>Film tiré</h2>
+              <strong id="winnerTitle"></strong>
+              <small id="winnerUser"></small>
+            </div>
+          </div>
+
+          <div class="card admin" id="usersPanel">
+            <h2>Admin</h2>
+            <div class="list" id="userList"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view hidden" id="historyView" data-view="history">
         <div class="card">
-          <h2>Proposer un film</h2>
-          <form class="search" id="searchForm">
-            <input id="movieQuery" placeholder="Film" />
-            <button type="submit">Rechercher</button>
-          </form>
-          <p class="message" id="message"></p>
-          <div class="results" id="results"></div>
+          <h2>Historique</h2>
+          <div class="list" id="historyList"></div>
         </div>
+      </section>
 
-        <div class="card">
-          <h2>Films proposés</h2>
-          <div class="list" id="movieList"></div>
-        </div>
-
-        <div class="card winner hidden" id="winnerCard">
-          <h2>Film tiré</h2>
-          <strong id="winnerTitle"></strong>
-          <small id="winnerUser"></small>
-        </div>
-
-        <div class="card admin hidden" id="adminPanel">
-          <h2>Admin</h2>
-          <button id="drawButton">Lancer le tirage</button>
-          <div class="list" id="userList"></div>
+      <section class="view hidden" id="profileView" data-view="profile">
+        <div class="card profile-card">
+          <h2>Profil</h2>
+          <div class="list" id="profileDetails"></div>
         </div>
       </section>
     </main>

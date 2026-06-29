@@ -37,9 +37,15 @@ const elements = {
   winnerCard: document.querySelector('#winnerCard'),
   winnerTitle: document.querySelector('#winnerTitle'),
   winnerUser: document.querySelector('#winnerUser'),
+  tabs: document.querySelectorAll('.tab'),
+  adminTabs: document.querySelectorAll('.admin-only'),
+  views: document.querySelectorAll('.view'),
   adminPanel: document.querySelector('#adminPanel'),
+  usersPanel: document.querySelector('#usersPanel'),
   drawButton: document.querySelector('#drawButton'),
   userList: document.querySelector('#userList'),
+  historyList: document.querySelector('#historyList'),
+  profileDetails: document.querySelector('#profileDetails'),
 };
 
 let authMode = 'login';
@@ -47,6 +53,8 @@ let currentUser = JSON.parse(localStorage.getItem('cinepaff_user'));
 let movies = {};
 let users = {};
 let draw = null;
+let history = {};
+let route = 'home';
 
 function normalizeId(id) {
   return id.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
@@ -80,6 +88,41 @@ async function passwordMatches(password, account) {
   return bytesToHex(new Uint8Array(legacyHash)) === account.passwordHash;
 }
 
+
+function setRoute(nextRoute) {
+  route = nextRoute;
+  if (route === 'draws' && !currentUser?.isAdmin) route = 'home';
+  elements.views.forEach((view) => view.classList.toggle('hidden', view.dataset.view !== route));
+  elements.tabs.forEach((tab) => tab.classList.toggle('active', tab.dataset.route === route));
+}
+
+function syncRouteFromHash() {
+  const nextRoute = window.location.hash.replace('#', '') || 'home';
+  setRoute(['home', 'draws', 'history', 'profile'].includes(nextRoute) ? nextRoute : 'home');
+}
+
+function formatDate(timestamp) {
+  if (!timestamp) return '';
+  return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'short' }).format(timestamp);
+}
+
+function createMetaItem(title, detail = '') {
+  const item = document.createElement('div');
+  item.className = 'list-item';
+  const meta = document.createElement('span');
+  meta.className = 'meta';
+  const strong = document.createElement('strong');
+  strong.textContent = title;
+  meta.append(strong);
+  if (detail) {
+    const small = document.createElement('small');
+    small.textContent = detail;
+    meta.append(small);
+  }
+  item.append(meta);
+  return item;
+}
+
 function movieArray() {
   return Object.entries(movies).map(([key, movie]) => ({ key, ...movie }));
 }
@@ -96,10 +139,13 @@ function render() {
   currentUser.isAdmin = Boolean(users[currentUser.id]?.isAdmin ?? currentUser.isAdmin);
   localStorage.setItem('cinepaff_user', JSON.stringify(currentUser));
   elements.currentUser.textContent = currentUser.id;
-  elements.adminPanel.classList.toggle('hidden', !currentUser.isAdmin);
+  elements.adminTabs.forEach((tab) => tab.classList.toggle('hidden', !currentUser.isAdmin));
+  syncRouteFromHash();
   renderMovies();
   renderUsers();
   renderDraw();
+  renderHistory();
+  renderProfile();
 }
 
 function renderMovies() {
@@ -145,6 +191,18 @@ function renderDraw() {
   elements.winnerCard.classList.toggle('hidden', !draw);
   elements.winnerTitle.textContent = draw?.title || '';
   elements.winnerUser.textContent = draw?.proposedBy || '';
+}
+
+function renderHistory() {
+  const list = Object.entries(history)
+    .map(([key, movie]) => ({ key, ...movie }))
+    .sort((a, b) => (b.drawnAt || 0) - (a.drawnAt || 0));
+  elements.historyList.replaceChildren(...list.map((movie) => createMetaItem(movie.title, formatDate(movie.drawnAt))));
+}
+
+function renderProfile() {
+  const role = currentUser?.isAdmin ? 'Admin' : 'Utilisateur';
+  elements.profileDetails.replaceChildren(createMetaItem(currentUser.id, role));
 }
 
 async function handleAuth(event) {
@@ -231,7 +289,9 @@ async function proposeMovie(movie) {
 async function drawMovie() {
   const list = movieArray();
   if (!currentUser?.isAdmin || !list.length) return;
-  await set(ref(db, 'draw/current'), { ...list[Math.floor(Math.random() * list.length)], drawnAt: Date.now() });
+  const selected = { ...list[Math.floor(Math.random() * list.length)], drawnAt: Date.now() };
+  await set(ref(db, 'draw/current'), selected);
+  await push(ref(db, 'draw/history'), selected);
 }
 
 elements.authForm.addEventListener('submit', handleAuth);
@@ -243,6 +303,14 @@ elements.authToggle.addEventListener('click', () => {
   elements.authToggle.textContent = authMode === 'login' ? 'Créer un compte' : 'Connexion';
   elements.password.autocomplete = authMode === 'login' ? 'current-password' : 'new-password';
 });
+elements.tabs.forEach((tab) => {
+  tab.addEventListener('click', () => {
+    window.location.hash = tab.dataset.route;
+    setRoute(tab.dataset.route);
+  });
+});
+window.addEventListener('hashchange', syncRouteFromHash);
+
 elements.logoutButton.addEventListener('click', () => {
   localStorage.removeItem('cinepaff_user');
   currentUser = null;
@@ -263,5 +331,10 @@ onValue(ref(db, 'draw/current'), (snapshot) => {
   draw = snapshot.val();
   if (currentUser) renderDraw();
 });
+onValue(ref(db, 'draw/history'), (snapshot) => {
+  history = snapshot.val() || {};
+  if (currentUser) renderHistory();
+});
 
+syncRouteFromHash();
 render();

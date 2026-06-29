@@ -182,7 +182,7 @@ small {
 }
 
 .admin {
-  grid-column: 1 / -1;
+  min-width: 0;
 }
 
 @media (max-width: 760px) {
@@ -203,4 +203,49 @@ small {
 
 .auth-card h1 {
   text-align: center;
+}
+
+
+.app-page {
+  min-height: 100vh;
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.tab {
+  background: #191d27;
+  color: #f7f1e8;
+  outline: 1px solid #2b3141;
+}
+
+.tab.active {
+  background: linear-gradient(135deg, #ffd166, #ffb703);
+  color: #17130a;
+  outline-color: transparent;
+}
+
+.view {
+  min-width: 0;
+}
+
+.winner {
+  margin-top: 18px;
+}
+
+.profile-card {
+  max-width: 520px;
+}
+
+.meta {
+  display: grid;
+  gap: 4px;
+}
+
+.meta strong {
+  font-size: 1rem;
 }
