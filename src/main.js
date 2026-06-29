@@ -69,6 +69,7 @@ let lastDrawn = null;
 let history = {};
 let route = 'home';
 let activeSeenMovie = null;
+let ratedMovieKey = '';
 
 function normalizeId(id) {
   return id.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
@@ -318,8 +319,20 @@ function renderDraw() {
   }
 }
 
+function normalizeRating(rating) {
+  const value = Number(rating);
+  return Number.isFinite(value) && value >= 1 && value <= 5 ? value : null;
+}
+
 function getMovieRatings(movie) {
-  return Object.values(movie.ratings || {}).filter((rating) => Number.isFinite(rating));
+  return Object.values(movie.ratings || {})
+    .map(normalizeRating)
+    .filter((rating) => rating !== null);
+}
+
+function getUserRating(movie) {
+  if (!currentUser) return 0;
+  return normalizeRating(movie.ratings?.[currentUser.id]) || 0;
 }
 
 function getAverageRating(movie) {
@@ -362,7 +375,9 @@ function createRatingButton(movie, value) {
   button.type = 'button';
   button.textContent = '★';
   button.ariaLabel = `${value}/5`;
-  button.classList.toggle('active', value <= (movie.ratings?.[currentUser.id] || 0));
+  const userRating = getUserRating(movie);
+  button.classList.toggle('active', value <= userRating);
+  button.classList.toggle('selected', value === userRating);
   button.addEventListener('click', () => rateSeenMovie(movie.key, value));
   return button;
 }
@@ -391,11 +406,24 @@ function createSeenMovieCard(movie) {
   title.textContent = movie.title;
   const proposedBy = document.createElement('small');
   proposedBy.textContent = movie.proposedBy;
+  const ratingRow = document.createElement('span');
+  ratingRow.className = 'seen-card__rating-row';
   const average = document.createElement('span');
   average.className = 'seen-card__rating';
   const averageRating = getAverageRating(movie);
   average.textContent = averageRating ? `${averageRating}/5` : '—/5';
-  meta.append(title, proposedBy, average);
+  const userRating = getUserRating(movie);
+  item.classList.toggle('seen-card--rated', userRating > 0);
+  if (movie.key === ratedMovieKey) item.classList.add('seen-card--just-rated');
+  ratingRow.append(average);
+  if (userRating > 0) {
+    const marker = document.createElement('span');
+    marker.className = 'seen-card__rated-marker';
+    marker.textContent = '✓';
+    marker.ariaLabel = `${userRating}/5`;
+    ratingRow.append(marker);
+  }
+  meta.append(title, proposedBy, ratingRow);
   item.append(meta);
   return item;
 }
@@ -423,6 +451,7 @@ function openRatingModal(movie) {
     elements.ratingModalPoster.append(image);
   }
   elements.ratingModalStars.replaceChildren(...[1, 2, 3, 4, 5].map((value) => createRatingButton(movie, value)));
+  elements.ratingModalStars.classList.toggle('rating--confirmed', movie.key === ratedMovieKey && getUserRating(movie) > 0);
   elements.ratingModal.classList.remove('hidden');
 }
 
@@ -433,6 +462,14 @@ function closeRatingModal() {
 
 async function rateSeenMovie(key, rating) {
   if (!currentUser) return;
+  ratedMovieKey = key;
+  if (history[key]) {
+    history[key] = {
+      ...history[key],
+      ratings: { ...(history[key].ratings || {}), [currentUser.id]: rating },
+    };
+    renderSeenMovies();
+  }
   await set(ref(db, `draw/history/${key}/ratings/${currentUser.id}`), rating);
 }
 
