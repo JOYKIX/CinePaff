@@ -22,27 +22,27 @@
 
     <main class="page app-page hidden" id="appPage">
       <div class="app-shell">
-        <div class="session session--floating" aria-label="Utilisateur">
-          <span id="currentUser"></span>
-          <button id="logoutButton">Déconnexion</button>
-        </div>
-
-        <header class="hero">
+        <header class="app-header">
           <h1 class="brand brand--hero"><img src="./image/Logo.png" alt="Grand PAFF" /></h1>
-        </header>
 
-        <nav class="tabs" aria-label="Navigation">
-          <button class="tab" type="button" data-route="home">Accueil</button>
-          <button class="tab admin-only hidden" type="button" data-route="draws">Tirages</button>
-          <button class="tab" type="button" data-route="seen">Films vus</button>
-          <button class="tab" type="button" data-route="profile">Profil</button>
-        </nav>
+          <nav class="tabs" aria-label="Navigation">
+            <button class="tab" type="button" data-route="home">Accueil</button>
+            <button class="tab admin-only hidden" type="button" data-route="draws">Tirages</button>
+            <button class="tab" type="button" data-route="seen">Films vus</button>
+            <button class="tab" type="button" data-route="profile">Profil</button>
+          </nav>
+
+          <div class="session" aria-label="Utilisateur">
+            <span id="currentUser"></span>
+            <button id="logoutButton">Déconnexion</button>
+          </div>
+        </header>
 
         <div class="views-shell">
           <section class="view" id="homeView" data-view="home">
             <div class="home-layout">
               <section class="proposal-panel">
-                <div class="section-kicker">Proposer un film</div>
+                <div class="section-kicker">Proposer</div>
                 <form class="search" id="searchForm">
                   <input id="movieQuery" placeholder="Film" />
                   <button type="submit">Rechercher</button>
@@ -52,7 +52,7 @@
               </section>
 
               <section class="slate-panel">
-                <div class="section-kicker">Films proposés</div>
+                <div class="section-kicker">Sélection</div>
                 <div class="poster-grid" id="movieList"></div>
               </section>
             </div>
@@ -63,7 +63,7 @@
               <section class="panel draw-panel" id="adminPanel">
                 <div class="panel-head">
                   <h2>Tirages</h2>
-                  <button id="drawButton">Lancer le tirage</button>
+                  <button id="drawButton">Lancer</button>
                 </div>
                 <div class="draw-stage" id="drawStage" aria-live="polite">
                   <div class="draw-marker" aria-hidden="true"></div>
