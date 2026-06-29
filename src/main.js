@@ -175,7 +175,11 @@ function setRoute(nextRoute) {
   route = nextRoute;
   if (route === 'draws' && !currentUser?.isAdmin) route = 'home';
   elements.views.forEach((view) => view.classList.toggle('hidden', view.dataset.view !== route));
-  elements.tabs.forEach((tab) => tab.classList.toggle('active', tab.dataset.route === route));
+  elements.tabs.forEach((tab) => {
+    const isActive = tab.dataset.route === route;
+    tab.classList.toggle('active', isActive);
+    tab.setAttribute('aria-current', isActive ? 'page' : 'false');
+  });
 }
 
 function syncRouteFromHash() {
@@ -224,6 +228,7 @@ function canProposeMovie() {
 function render() {
   elements.authPage.classList.toggle('hidden', Boolean(currentUser));
   elements.appPage.classList.toggle('hidden', !currentUser);
+  document.body.classList.toggle('is-authenticated', Boolean(currentUser));
   if (!currentUser) return;
 
   currentUser.isAdmin = Boolean(users[currentUser.id]?.isAdmin ?? currentUser.isAdmin);
@@ -518,11 +523,19 @@ async function searchMovies(event) {
   elements.results.replaceChildren();
   const query = elements.movieQuery.value.trim();
   if (!query) return;
-  const response = await fetch(`https://api.themoviedb.org/3/search/movie?query=${encodeURIComponent(query)}&language=fr-FR`, {
-    headers: { Authorization: `Bearer ${tmdbToken}`, accept: 'application/json' },
-  });
-  const data = await response.json();
-  elements.results.replaceChildren(...(data.results || []).slice(0, 8).map(createMovieButton));
+  elements.searchForm.querySelector('button').disabled = true;
+  try {
+    const response = await fetch(`https://api.themoviedb.org/3/search/movie?query=${encodeURIComponent(query)}&language=fr-FR`, {
+      headers: { Authorization: `Bearer ${tmdbToken}`, accept: 'application/json' },
+    });
+    if (!response.ok) throw new Error('Search failed');
+    const data = await response.json();
+    elements.results.replaceChildren(...(data.results || []).slice(0, 8).map(createMovieButton));
+  } catch {
+    elements.message.textContent = 'Erreur';
+  } finally {
+    elements.searchForm.querySelector('button').disabled = false;
+  }
 }
 
 function createMovieButton(movie) {
