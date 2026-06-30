@@ -18,10 +18,15 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const encoder = new TextEncoder();
 const storageKey = 'cinepaff_user';
+const ratingFormatter = new Intl.NumberFormat('fr-FR', {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
 
 const elements = {
   authPage: document.querySelector('#authPage'),
   appPage: document.querySelector('#appPage'),
+  appHeader: document.querySelector('.app-header'),
   authForm: document.querySelector('#authForm'),
   identifier: document.querySelector('#identifier'),
   password: document.querySelector('#password'),
@@ -30,6 +35,8 @@ const elements = {
   authToggle: document.querySelector('#authToggle'),
   currentUser: document.querySelector('#currentUser'),
   logoutButton: document.querySelector('#logoutButton'),
+  menuToggle: document.querySelector('#menuToggle'),
+  navRow: document.querySelector('#primaryNav'),
   searchForm: document.querySelector('#searchForm'),
   movieQuery: document.querySelector('#movieQuery'),
   message: document.querySelector('#message'),
@@ -53,6 +60,10 @@ const elements = {
   ratingModalBackdrop: document.querySelector('#ratingModalBackdrop'),
   ratingModalClose: document.querySelector('#ratingModalClose'),
   ratingModalTitle: document.querySelector('#ratingModalTitle'),
+  ratingModalFacts: document.querySelector('#ratingModalFacts'),
+  ratingModalOverview: document.querySelector('#ratingModalOverview'),
+  ratingModalCredits: document.querySelector('#ratingModalCredits'),
+  ratingModalImdb: document.querySelector('#ratingModalImdb'),
   ratingModalAverage: document.querySelector('#ratingModalAverage'),
   ratingModalPoster: document.querySelector('#ratingModalPoster'),
   ratingModalStars: document.querySelector('#ratingModalStars'),
@@ -70,6 +81,8 @@ let history = {};
 let route = 'home';
 let activeSeenMovie = null;
 let ratedMovieKey = '';
+let movieDetailsRequestId = 0;
+const movieDetailsCache = new Map();
 
 function normalizeId(id) {
   return id.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
@@ -160,14 +173,31 @@ function goHome() {
   window.location.hash = 'home';
 }
 
-async function passwordMatches(password, account) {
-  if (account.passwordSalt && account.passwordHash) {
-    const passwordData = await hashPassword(password, hexToBytes(account.passwordSalt));
-    return passwordData.hash === account.passwordHash;
+function setMobileMenu(open) {
+  elements.appHeader.classList.toggle('menu-open', open);
+  document.body.classList.toggle('menu-lock', open);
+  elements.menuToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open) {
+    window.setTimeout(() => {
+      elements.navRow.querySelector('.tab:not(.hidden), #logoutButton')?.focus();
+    }, 0);
+  } else if (elements.navRow.contains(document.activeElement)) {
+    elements.menuToggle.focus();
   }
+}
 
-  const legacyHash = await crypto.subtle.digest('SHA-256', encoder.encode(password));
-  return bytesToHex(new Uint8Array(legacyHash)) === account.passwordHash;
+async function passwordMatches(password, account) {
+  try {
+    if (account.passwordSalt && account.passwordHash) {
+      const passwordData = await hashPassword(password, hexToBytes(account.passwordSalt));
+      return passwordData.hash === account.passwordHash;
+    }
+
+    const legacyHash = await crypto.subtle.digest('SHA-256', encoder.encode(password));
+    return bytesToHex(new Uint8Array(legacyHash)) === account.passwordHash;
+  } catch {
+    return false;
+  }
 }
 
 
@@ -180,6 +210,7 @@ function setRoute(nextRoute) {
     tab.classList.toggle('active', isActive);
     tab.setAttribute('aria-current', isActive ? 'page' : 'false');
   });
+  setMobileMenu(false);
 }
 
 function syncRouteFromHash() {
@@ -247,6 +278,115 @@ function posterUrl(path, size = 'w342') {
   return path ? `https://image.tmdb.org/t/p/${size}${path}` : '';
 }
 
+function formatYear(date) {
+  return typeof date === 'string' && date.length >= 4 ? date.slice(0, 4) : '';
+}
+
+function formatRuntime(minutes) {
+  const value = Number(minutes);
+  if (!Number.isFinite(value) || value <= 0) return '';
+  const hours = Math.floor(value / 60);
+  const remainingMinutes = value % 60;
+  if (!hours) return `${remainingMinutes} min`;
+  return remainingMinutes ? `${hours} h ${remainingMinutes}` : `${hours} h`;
+}
+
+function formatTmdbScore(score) {
+  const value = Number(score);
+  if (!Number.isFinite(value) || value <= 0) return '';
+  return `${ratingFormatter.format(value)}/10`;
+}
+
+function createFact(label, value) {
+  if (!value) return null;
+  const fact = document.createElement('span');
+  fact.className = 'movie-fact';
+  const factLabel = document.createElement('small');
+  factLabel.textContent = label;
+  const factValue = document.createElement('strong');
+  factValue.textContent = value;
+  fact.append(factLabel, factValue);
+  return fact;
+}
+
+function getMovieDetailsCacheKey(movie) {
+  return movie.tmdbId ? `tmdb-${movie.tmdbId}` : `movie-${getSeenMovieId(movie)}`;
+}
+
+async function fetchMovieDetails(movie) {
+  const cacheKey = getMovieDetailsCacheKey(movie);
+  if (movieDetailsCache.has(cacheKey)) return movieDetailsCache.get(cacheKey);
+  if (!movie.tmdbId) return null;
+
+  const response = await fetch(`https://api.themoviedb.org/3/movie/${movie.tmdbId}?language=fr-FR&append_to_response=credits,external_ids`, {
+    headers: { Authorization: `Bearer ${tmdbToken}`, accept: 'application/json' },
+  });
+  if (!response.ok) throw new Error('Movie details failed');
+  const details = await response.json();
+  movieDetailsCache.set(cacheKey, details);
+  return details;
+}
+
+function getDirector(details) {
+  return (details?.credits?.crew || []).find((person) => person.job === 'Director')?.name || '';
+}
+
+function getCast(details) {
+  return (details?.credits?.cast || [])
+    .slice(0, 3)
+    .map((person) => person.name)
+    .filter(Boolean)
+    .join(', ');
+}
+
+function renderMovieDetails(movie, details, state = 'ready') {
+  const genres = (details?.genres || []).map((genre) => genre.name).filter(Boolean).slice(0, 3).join(', ');
+  const facts = [
+    createFact('Année', formatYear(details?.release_date || movie.releaseDate)),
+    createFact('Durée', formatRuntime(details?.runtime)),
+    createFact('Genre', genres),
+    createFact('TMDB', formatTmdbScore(details?.vote_average)),
+  ].filter(Boolean);
+
+  if (state === 'loading') {
+    facts.unshift(createFact('Infos', 'Chargement'));
+  }
+
+  elements.ratingModalFacts.replaceChildren(...facts);
+  elements.ratingModalOverview.textContent = state === 'loading'
+    ? 'Chargement des infos du film...'
+    : details?.overview || movie.overview || 'Synopsis indisponible pour ce film.';
+
+  const director = getDirector(details);
+  const cast = getCast(details);
+  const credits = [
+    director ? `Réalisation : ${director}` : '',
+    cast ? `Avec : ${cast}` : '',
+  ].filter(Boolean);
+
+  if (state === 'error') credits.unshift('Infos détaillées indisponibles pour le moment.');
+  elements.ratingModalCredits.replaceChildren(...credits.map((credit) => {
+    const item = document.createElement('span');
+    item.textContent = credit;
+    return item;
+  }));
+
+  const imdbId = details?.external_ids?.imdb_id;
+  elements.ratingModalImdb.classList.toggle('hidden', !imdbId);
+  if (imdbId) elements.ratingModalImdb.href = `https://www.imdb.com/title/${imdbId}/`;
+}
+
+async function loadMovieDetails(movie, requestId) {
+  try {
+    const details = await fetchMovieDetails(movie);
+    if (requestId !== movieDetailsRequestId || activeSeenMovie?.key !== movie.key) return;
+    renderMovieDetails(movie, details, details ? 'ready' : 'error');
+  } catch {
+    if (requestId !== movieDetailsRequestId || activeSeenMovie?.key !== movie.key) return;
+    renderMovieDetails(movie, null, 'error');
+  }
+}
+
 function renderMovies() {
   const list = movieArray().sort((a, b) => a.createdAt - b.createdAt);
   const ownMovie = proposedMovie();
@@ -254,6 +394,11 @@ function renderMovies() {
   elements.drawButton.disabled = list.length === 0;
   elements.searchForm.classList.toggle('hidden', !canPropose);
   elements.message.textContent = wasLastDrawnUser() ? 'Dernier tiré au sort' : ownMovie ? 'Film proposé' : '';
+  if (!list.length) {
+    elements.movieList.replaceChildren(createEmptyState('Aucun film en sélection'));
+    return;
+  }
+
   elements.movieList.replaceChildren(...list.map((movie) => {
     const item = document.createElement('article');
     item.className = 'poster-card';
@@ -289,6 +434,13 @@ function renderMovies() {
   }));
 }
 
+function createEmptyState(text) {
+  const empty = document.createElement('div');
+  empty.className = 'empty-state';
+  empty.textContent = text;
+  return empty;
+}
+
 function renderUsers() {
   const list = Object.entries(users).map(([id, data]) => ({ id, ...data })).sort((a, b) => a.id.localeCompare(b.id));
   elements.userList.replaceChildren(...list.map((account) => {
@@ -301,8 +453,16 @@ function renderUsers() {
     checkbox.type = 'checkbox';
     checkbox.checked = Boolean(account.isAdmin);
     checkbox.addEventListener('change', async () => {
-      await update(ref(db, `users/${account.id}`), { isAdmin: checkbox.checked });
-      if (account.id === currentUser.id) currentUser = { ...currentUser, isAdmin: checkbox.checked };
+      const nextValue = checkbox.checked;
+      checkbox.disabled = true;
+      try {
+        await update(ref(db, `users/${account.id}`), { isAdmin: nextValue });
+        if (account.id === currentUser.id) currentUser = { ...currentUser, isAdmin: nextValue };
+      } catch {
+        checkbox.checked = !nextValue;
+      } finally {
+        checkbox.disabled = false;
+      }
     });
     label.append(checkbox, 'Admin');
     item.append(id, label);
@@ -326,7 +486,7 @@ function renderDraw() {
 
 function normalizeRating(rating) {
   const value = Number(rating);
-  return Number.isFinite(value) && value >= 1 && value <= 5 ? value : null;
+  return Number.isInteger(value) && value >= 1 && value <= 5 ? value : null;
 }
 
 function getMovieRatings(movie) {
@@ -344,30 +504,46 @@ function getAverageRating(movie) {
   const ratings = getMovieRatings(movie);
   if (!ratings.length) return '';
   const average = ratings.reduce((total, rating) => total + rating, 0) / ratings.length;
-  return average.toFixed(1);
+  return ratingFormatter.format(average);
+}
+
+function getRatingCount(movie) {
+  return getMovieRatings(movie).length;
 }
 
 function getSeenMovieId(movie) {
   return movie.tmdbId || `${movie.title}-${movie.posterPath}`;
 }
 
+function normalizeSeenMovie(historyKey, movie) {
+  const { key: movieKey = '', ratings = {}, ...movieData } = movie;
+  return {
+    ...movieData,
+    key: historyKey,
+    movieKey,
+    historyKeys: [historyKey],
+    ratings: { ...ratings },
+  };
+}
+
 function seenMovieArray() {
   const grouped = new Map();
-  Object.entries(history).forEach(([key, movie]) => {
+  Object.entries(history).forEach(([historyKey, movie]) => {
     if (!movie?.title) return;
     const movieId = getSeenMovieId(movie);
+    const nextMovie = normalizeSeenMovie(historyKey, movie);
     const existing = grouped.get(movieId);
     if (!existing) {
-      grouped.set(movieId, { key, ...movie, ratings: { ...(movie.ratings || {}) } });
+      grouped.set(movieId, nextMovie);
       return;
     }
 
+    const latestMovie = (nextMovie.drawnAt || 0) > (existing.drawnAt || 0) ? nextMovie : existing;
     grouped.set(movieId, {
-      ...existing,
-      ...movie,
-      key: existing.key,
-      drawnAt: Math.max(existing.drawnAt || 0, movie.drawnAt || 0),
-      ratings: { ...(existing.ratings || {}), ...(movie.ratings || {}) },
+      ...latestMovie,
+      historyKeys: Array.from(new Set([...(existing.historyKeys || []), historyKey])),
+      drawnAt: Math.max(existing.drawnAt || 0, nextMovie.drawnAt || 0),
+      ratings: { ...(existing.ratings || {}), ...(nextMovie.ratings || {}) },
     });
   });
 
@@ -379,11 +555,16 @@ function createRatingButton(movie, value) {
   button.className = 'rating-button';
   button.type = 'button';
   button.textContent = '★';
-  button.ariaLabel = `${value}/5`;
+  button.ariaLabel = `Noter ${value}/5`;
+  button.title = `Noter ${value}/5`;
   const userRating = getUserRating(movie);
   button.classList.toggle('active', value <= userRating);
   button.classList.toggle('selected', value === userRating);
-  button.addEventListener('click', () => rateSeenMovie(movie.key, value));
+  button.setAttribute('aria-pressed', value <= userRating ? 'true' : 'false');
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    rateSeenMovie(movie.key, value);
+  });
   return button;
 }
 
@@ -417,6 +598,8 @@ function createSeenMovieCard(movie) {
   average.className = 'seen-card__rating';
   const averageRating = getAverageRating(movie);
   average.textContent = averageRating ? `${averageRating}/5` : '—/5';
+  const ratingCount = getRatingCount(movie);
+  average.title = ratingCount ? `${ratingCount} note${ratingCount > 1 ? 's' : ''}` : 'Aucune note';
   const userRating = getUserRating(movie);
   item.classList.toggle('seen-card--rated', userRating > 0);
   if (movie.key === ratedMovieKey) item.classList.add('seen-card--just-rated');
@@ -424,8 +607,8 @@ function createSeenMovieCard(movie) {
   if (userRating > 0) {
     const marker = document.createElement('span');
     marker.className = 'seen-card__rated-marker';
-    marker.textContent = '✓';
-    marker.ariaLabel = `${userRating}/5`;
+    marker.textContent = `★ ${userRating}`;
+    marker.ariaLabel = `Votre note ${userRating}/5`;
     ratingRow.append(marker);
   }
   meta.append(title, proposedBy, ratingRow);
@@ -435,18 +618,30 @@ function createSeenMovieCard(movie) {
 
 function renderSeenMovies() {
   const list = seenMovieArray();
-  elements.seenList.replaceChildren(...list.map(createSeenMovieCard));
+  elements.seenList.replaceChildren(...(list.length ? list.map(createSeenMovieCard) : [createEmptyState('Aucun film vu')]));
   if (activeSeenMovie) {
-    const refreshedMovie = list.find((movie) => movie.key === activeSeenMovie.key);
+    const refreshedMovie = list.find((movie) => (
+      movie.key === activeSeenMovie.key
+      || movie.historyKeys?.includes(activeSeenMovie.key)
+    ));
     if (refreshedMovie) openRatingModal(refreshedMovie);
+    else closeRatingModal();
   }
 }
 
 function openRatingModal(movie) {
   activeSeenMovie = movie;
+  const requestId = ++movieDetailsRequestId;
   elements.ratingModalTitle.textContent = movie.title;
   const averageRating = getAverageRating(movie);
-  elements.ratingModalAverage.textContent = averageRating ? `${averageRating}/5` : '—/5';
+  const ratingCount = getRatingCount(movie);
+  const userRating = getUserRating(movie);
+  const averageLabel = averageRating
+    ? `Moyenne ${averageRating}/5 - ${ratingCount} note${ratingCount > 1 ? 's' : ''}`
+    : 'Aucune note pour le moment';
+  elements.ratingModalAverage.textContent = userRating
+    ? `${averageLabel} - Votre note ${userRating}/5`
+    : averageLabel;
   elements.ratingModalPoster.replaceChildren();
   const imageUrl = posterUrl(movie.posterPath, 'w500');
   if (imageUrl) {
@@ -454,7 +649,14 @@ function openRatingModal(movie) {
     image.src = imageUrl;
     image.alt = '';
     elements.ratingModalPoster.append(image);
+  } else {
+    const fallback = document.createElement('div');
+    fallback.className = 'poster-card__fallback';
+    fallback.textContent = movie.title;
+    elements.ratingModalPoster.append(fallback);
   }
+  renderMovieDetails(movie, null, 'loading');
+  loadMovieDetails(movie, requestId);
   elements.ratingModalStars.replaceChildren(...[1, 2, 3, 4, 5].map((value) => createRatingButton(movie, value)));
   elements.ratingModalStars.classList.toggle('rating--confirmed', movie.key === ratedMovieKey && getUserRating(movie) > 0);
   elements.ratingModal.classList.remove('hidden');
@@ -462,20 +664,26 @@ function openRatingModal(movie) {
 
 function closeRatingModal() {
   activeSeenMovie = null;
+  movieDetailsRequestId += 1;
   elements.ratingModal.classList.add('hidden');
 }
 
 async function rateSeenMovie(key, rating) {
-  if (!currentUser) return;
+  const normalizedRating = normalizeRating(rating);
+  if (!currentUser || !key || !normalizedRating) return;
   ratedMovieKey = key;
   if (history[key]) {
     history[key] = {
       ...history[key],
-      ratings: { ...(history[key].ratings || {}), [currentUser.id]: rating },
+      ratings: { ...(history[key].ratings || {}), [currentUser.id]: normalizedRating },
     };
     renderSeenMovies();
   }
-  await set(ref(db, `draw/history/${key}/ratings/${currentUser.id}`), rating);
+  try {
+    await set(ref(db, `draw/history/${key}/ratings/${currentUser.id}`), normalizedRating);
+  } catch {
+    elements.message.textContent = 'Impossible d’enregistrer la note';
+  }
 }
 
 function renderProfile() {
@@ -488,33 +696,43 @@ async function handleAuth(event) {
   elements.authError.textContent = '';
   const id = normalizeId(elements.identifier.value);
   const password = elements.password.value;
-  if (!id || !password) return;
-
-  const userRef = ref(db, `users/${id}`);
-  const snapshot = await get(userRef);
-
-  if (authMode === 'register') {
-    if (snapshot.exists()) {
-      elements.authError.textContent = 'ID déjà utilisé';
-      return;
-    }
-    const usersSnapshot = await get(ref(db, 'users'));
-    const passwordData = await hashPassword(password);
-    const user = { passwordHash: passwordData.hash, passwordSalt: passwordData.salt, isAdmin: !usersSnapshot.exists(), createdAt: Date.now() };
-    await set(userRef, user);
-    currentUser = { id, isAdmin: user.isAdmin };
-  } else {
-    if (!snapshot.exists() || !(await passwordMatches(password, snapshot.val()))) {
-      elements.authError.textContent = 'ID ou MDP incorrect';
-      return;
-    }
-    currentUser = { id, isAdmin: Boolean(snapshot.val().isAdmin) };
+  if (!id || !password) {
+    elements.authError.textContent = 'ID et MDP requis';
+    return;
   }
 
-  storeCurrentUser();
-  elements.authForm.reset();
-  goHome();
-  render();
+  elements.authSubmit.disabled = true;
+  try {
+    const userRef = ref(db, `users/${id}`);
+    const snapshot = await get(userRef);
+
+    if (authMode === 'register') {
+      if (snapshot.exists()) {
+        elements.authError.textContent = 'ID déjà utilisé';
+        return;
+      }
+      const usersSnapshot = await get(ref(db, 'users'));
+      const passwordData = await hashPassword(password);
+      const user = { passwordHash: passwordData.hash, passwordSalt: passwordData.salt, isAdmin: !usersSnapshot.exists(), createdAt: Date.now() };
+      await set(userRef, user);
+      currentUser = { id, isAdmin: user.isAdmin };
+    } else {
+      if (!snapshot.exists() || !(await passwordMatches(password, snapshot.val()))) {
+        elements.authError.textContent = 'ID ou MDP incorrect';
+        return;
+      }
+      currentUser = { id, isAdmin: Boolean(snapshot.val().isAdmin) };
+    }
+
+    storeCurrentUser();
+    elements.authForm.reset();
+    goHome();
+    render();
+  } catch {
+    elements.authError.textContent = 'Connexion impossible pour le moment';
+  } finally {
+    elements.authSubmit.disabled = false;
+  }
 }
 
 async function searchMovies(event) {
@@ -530,9 +748,11 @@ async function searchMovies(event) {
     });
     if (!response.ok) throw new Error('Search failed');
     const data = await response.json();
-    elements.results.replaceChildren(...(data.results || []).slice(0, 8).map(createMovieButton));
+    const results = (data.results || []).slice(0, 8);
+    elements.results.replaceChildren(...results.map(createMovieButton));
+    if (!results.length) elements.message.textContent = 'Aucun film trouvé';
   } catch {
-    elements.message.textContent = 'Erreur';
+    elements.message.textContent = 'Recherche impossible pour le moment';
   } finally {
     elements.searchForm.querySelector('button').disabled = false;
   }
@@ -547,6 +767,12 @@ function createMovieButton(movie) {
     image.src = `https://image.tmdb.org/t/p/w185${movie.poster_path}`;
     image.alt = '';
     button.append(image);
+  } else {
+    const fallback = document.createElement('span');
+    fallback.className = 'movie__fallback';
+    fallback.textContent = 'GP';
+    fallback.ariaHidden = 'true';
+    button.append(fallback);
   }
   const title = document.createElement('span');
   title.textContent = movie.title;
@@ -560,24 +786,34 @@ async function proposeMovie(movie) {
     elements.message.textContent = wasLastDrawnUser() ? 'Dernier tiré au sort' : 'Film déjà proposé';
     return;
   }
-  await push(ref(db, 'movies'), {
-    tmdbId: movie.id,
-    title: movie.title,
-    posterPath: movie.poster_path || '',
-    releaseDate: movie.release_date || '',
-    proposedBy: currentUser.id,
-    createdAt: Date.now(),
-  });
-  elements.results.replaceChildren();
-  elements.movieQuery.value = '';
-  elements.message.textContent = 'Film proposé';
+  try {
+    await push(ref(db, 'movies'), {
+      tmdbId: movie.id,
+      title: movie.title,
+      originalTitle: movie.original_title || movie.title,
+      posterPath: movie.poster_path || '',
+      releaseDate: movie.release_date || '',
+      overview: movie.overview || '',
+      proposedBy: currentUser.id,
+      createdAt: Date.now(),
+    });
+    elements.results.replaceChildren();
+    elements.movieQuery.value = '';
+    elements.message.textContent = 'Film proposé';
+  } catch {
+    elements.message.textContent = 'Impossible d’ajouter le film';
+  }
 }
 
 async function deleteMovie(key) {
   const movie = movies[key];
   if (!movie || movie.proposedBy !== currentUser?.id) return;
-  await remove(ref(db, `movies/${key}`));
-  elements.message.textContent = '';
+  try {
+    await remove(ref(db, `movies/${key}`));
+    elements.message.textContent = '';
+  } catch {
+    elements.message.textContent = 'Impossible de supprimer le film';
+  }
 }
 
 function pickDrawMovie(list) {
@@ -628,13 +864,21 @@ async function drawMovie() {
   const list = movieArray();
   if (!currentUser?.isAdmin || !list.length || elements.drawButton.disabled) return;
   elements.drawButton.disabled = true;
-  const selected = { ...pickDrawMovie(list), drawnAt: Date.now() };
-  await playDrawAnimation(list, selected);
-  await set(ref(db, 'draw/current'), selected);
-  await set(ref(db, 'draw/lastDrawn'), selected);
-  await push(ref(db, 'draw/history'), selected);
-  await remove(ref(db, 'movies'));
-  elements.drawButton.disabled = false;
+  let completed = false;
+  try {
+    const { key: movieKey, ...pickedMovie } = pickDrawMovie(list);
+    const selected = { ...pickedMovie, movieKey, drawnAt: Date.now() };
+    await playDrawAnimation(list, selected);
+    await set(ref(db, 'draw/current'), selected);
+    await set(ref(db, 'draw/lastDrawn'), selected);
+    await push(ref(db, 'draw/history'), selected);
+    await remove(ref(db, 'movies'));
+    completed = true;
+  } catch {
+    elements.message.textContent = 'Tirage impossible pour le moment';
+  } finally {
+    elements.drawButton.disabled = completed || movieArray().length === 0;
+  }
 }
 
 elements.authForm.addEventListener('submit', handleAuth);
@@ -646,6 +890,13 @@ elements.authToggle.addEventListener('click', () => {
   elements.authToggle.textContent = authMode === 'login' ? 'Créer un compte' : 'Connexion';
   elements.password.autocomplete = authMode === 'login' ? 'current-password' : 'new-password';
 });
+elements.menuToggle.addEventListener('click', () => {
+  const isOpen = elements.menuToggle.getAttribute('aria-expanded') === 'true';
+  setMobileMenu(!isOpen);
+});
+elements.navRow.addEventListener('click', (event) => {
+  if (event.target === elements.navRow) setMobileMenu(false);
+});
 elements.tabs.forEach((tab) => {
   tab.addEventListener('click', () => {
     window.location.hash = tab.dataset.route;
@@ -655,6 +906,7 @@ elements.tabs.forEach((tab) => {
 window.addEventListener('hashchange', syncRouteFromHash);
 
 elements.logoutButton.addEventListener('click', () => {
+  setMobileMenu(false);
   clearStoredUser();
   currentUser = null;
   render();
@@ -664,6 +916,10 @@ elements.drawButton.addEventListener('click', drawMovie);
 elements.ratingModalBackdrop.addEventListener('click', closeRatingModal);
 elements.ratingModalClose.addEventListener('click', closeRatingModal);
 window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && elements.menuToggle.getAttribute('aria-expanded') === 'true') {
+    setMobileMenu(false);
+    return;
+  }
   if (event.key === 'Escape' && !elements.ratingModal.classList.contains('hidden')) closeRatingModal();
 });
 

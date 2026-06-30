@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Grand Paff</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=grandpaff-ui-2" />
   </head>
   <body>
     <main class="page auth-page" id="authPage">
@@ -24,8 +24,15 @@
       <div class="app-shell" aria-label="Application">
         <header class="app-header">
           <h1 class="brand brand--app"><img src="./image/Logo.png" alt="Grand Paff" /></h1>
+          <button class="menu-toggle" id="menuToggle" type="button" aria-expanded="false" aria-controls="primaryNav">
+            <span class="menu-toggle__label">Menu</span>
+            <span class="menu-toggle__icon" aria-hidden="true">
+              <span></span>
+              <span></span>
+            </span>
+          </button>
 
-          <div class="nav-row">
+          <div class="nav-row" id="primaryNav">
             <nav class="tabs" aria-label="Navigation">
               <button class="tab" type="button" data-route="home">Accueil</button>
               <button class="tab admin-only hidden" type="button" data-route="draws">Tirages</button>
@@ -118,6 +125,10 @@
             <div class="rating-modal__poster" id="ratingModalPoster"></div>
             <div class="rating-modal__meta">
               <h2 id="ratingModalTitle"></h2>
+              <div class="movie-facts" id="ratingModalFacts"></div>
+              <p class="rating-modal__overview" id="ratingModalOverview"></p>
+              <div class="rating-modal__credits" id="ratingModalCredits"></div>
+              <a class="rating-modal__imdb hidden" id="ratingModalImdb" href="#" target="_blank" rel="noreferrer">Voir sur IMDb</a>
               <small id="ratingModalAverage"></small>
               <div class="rating rating--modal" id="ratingModalStars"></div>
             </div>
