@@ -1,153 +1,155 @@
 <!doctype html>
 <html lang="fr">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Grand Paff</title>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
-  <link rel="stylesheet" href="./styles.css?v=grandpaff-ui-6" />
-  </head>
-  <body>
-    <main class="page auth-page" id="authPage">
-      <section class="auth-card" aria-label="Authentification">
-        <h1 class="brand"><img src="./image/Logo.png" alt="Grand Paff" /></h1>
-        <form id="authForm" class="auth-form">
-          <input id="identifier" placeholder="ID" autocomplete="username" aria-label="ID" />
-          <input id="password" placeholder="MDP" type="password" autocomplete="current-password" aria-label="MDP" />
-          <p class="error" id="authError"></p>
-          <button id="authSubmit" type="submit">Connexion</button>
-        </form>
-        <button class="ghost-button" id="authToggle">Créer un compte</button>
-      </section>
-    </main>
-
-    <main class="page app-page hidden" id="appPage">
-      <div class="app-shell" aria-label="Application">
-        <header class="app-header">
-          <h1 class="brand brand--app"><img src="./image/Logo.png" alt="Grand Paff" /></h1>
-          <button class="menu-toggle" id="menuToggle" type="button" aria-expanded="false" aria-controls="primaryNav">
-            <span class="menu-toggle__label">Menu</span>
-            <span class="menu-toggle__icon" aria-hidden="true">
-              <span></span>
-              <span></span>
-            </span>
-          </button>
-
-          <div class="nav-row" id="primaryNav">
-            <nav class="tabs" aria-label="Navigation">
-              <button class="tab" type="button" data-route="home"><span class="material-symbols-rounded" aria-hidden="true">home</span>Accueil</button>
-              <button class="tab admin-only hidden" type="button" data-route="draws"><span class="material-symbols-rounded" aria-hidden="true">casino</span>Tirages</button>
-              <button class="tab" type="button" data-route="seen"><span class="material-symbols-rounded" aria-hidden="true">movie</span>Films vus</button>
-              <button class="tab" type="button" data-route="profile"><span class="material-symbols-rounded" aria-hidden="true">person</span>Profil</button>
-            </nav>
-
-            <section class="session" aria-label="Utilisateur">
-              <span id="currentUser"></span>
-              <button id="logoutButton"><span class="material-symbols-rounded" aria-hidden="true">logout</span>Déconnexion</button>
-            </section>
-          </div>
-        </header>
-
-        <div class="workspace">
-          <section class="view" id="homeView" data-view="home">
-            <div class="home-layout">
-              <section class="surface search-panel">
-                <div class="section-label">Proposer</div>
-                <form class="search" id="searchForm">
-                  <input id="movieQuery" placeholder="Film" aria-label="Film" />
-                  <button type="submit"><span class="material-symbols-rounded" aria-hidden="true">search</span>Rechercher</button>
+    <head>
+        <meta charset="UTF-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+        <title>Grand Paff</title>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0"/>
+        <link rel="stylesheet" href="./styles.css?v=grandpaff-ui-6"/>
+        <link rel="icon" href="image/Logo.png" type="image/png">
+    </head>
+    <body>
+        <main class="page auth-page" id="authPage">
+            <section class="auth-card" aria-label="Authentification">
+                <h1 class="brand"><img src="./image/Logo.png" alt="Grand Paff"/></h1>
+                <form id="authForm" class="auth-form">
+                    <input id="identifier" placeholder="ID" autocomplete="username" aria-label="ID"/>
+                    <input id="password" placeholder="MDP" type="password" autocomplete="current-password" aria-label="MDP"/>
+                    <p class="error" id="authError"></p>
+                    <button id="authSubmit" type="submit">Connexion</button>
                 </form>
-                <p class="message" id="message"></p>
-                <div class="results" id="results"></div>
-              </section>
-
-              <section class="surface selection-panel">
-                <div class="section-label">Sélection</div>
-                <div class="poster-grid" id="movieList"></div>
-              </section>
-            </div>
-          </section>
-
-          <section class="view hidden" id="drawsView" data-view="draws">
-            <div class="draw-layout draw-layout--single">
-              <section class="surface draw-panel" id="adminPanel">
-                <div class="panel-head">
-                  <h2>Tirages</h2>
-                  <div class="draw-actions">
-                    <button class="switch-button" id="drawKeepSelectionToggle" type="button" aria-pressed="false">
-                      <span class="material-symbols-rounded" aria-hidden="true">science</span>
-                      <span>Tirage test</span>
-                      <span class="switch-button__track" aria-hidden="true"><span></span></span>
+                <button class="ghost-button" id="authToggle">Créer un compte</button>
+            </section>
+        </main>
+        <main class="page app-page hidden" id="appPage">
+            <div class="app-shell" aria-label="Application">
+                <header class="app-header">
+                    <h1 class="brand brand--app"><img src="./image/Logo.png" alt="Grand Paff"/></h1>
+                    <button class="menu-toggle" id="menuToggle" type="button" aria-expanded="false" aria-controls="primaryNav">
+                        <span class="menu-toggle__label">Menu</span>
+                        <span class="menu-toggle__icon" aria-hidden="true"> <span></span> <span></span> </span>
                     </button>
-                    <button id="drawButton"><span class="material-symbols-rounded" aria-hidden="true">casino</span>Lancer</button>
-                  </div>
-                </div>
-                <div class="draw-stage" id="drawStage" aria-live="polite">
-                  <div class="draw-marker" aria-hidden="true"></div>
-                  <div class="cover-stack" id="coverStack"></div>
-                  <div class="winner hidden" id="winnerCard">
-                    <div class="winner-poster" id="winnerPoster"></div>
-                    <div>
-                      <h2>Film tiré</h2>
-                      <strong id="winnerTitle"></strong>
-                      <small id="winnerUser"></small>
+                    <div class="nav-row" id="primaryNav">
+                        <nav class="tabs" aria-label="Navigation">
+                            <button class="tab" type="button" data-route="home">
+                                <span class="material-symbols-rounded" aria-hidden="true">home</span>Accueil
+                            </button>
+                            <button class="tab admin-only hidden" type="button" data-route="draws">
+                                <span class="material-symbols-rounded" aria-hidden="true">casino</span>Tirages
+                            </button>
+                            <button class="tab" type="button" data-route="seen">
+                                <span class="material-symbols-rounded" aria-hidden="true">movie</span>Films vus
+                            </button>
+                            <button class="tab" type="button" data-route="profile">
+                                <span class="material-symbols-rounded" aria-hidden="true">person</span>Profil
+                            </button>
+                        </nav>
+                        <section class="session" aria-label="Utilisateur">
+                            <span id="currentUser"></span>
+                            <button id="logoutButton">
+                                <span class="material-symbols-rounded" aria-hidden="true">logout</span>Déconnexion
+                            </button>
+                        </section>
                     </div>
-                  </div>
+                </header>
+                <div class="workspace">
+                    <section class="view" id="homeView" data-view="home">
+                        <div class="home-layout">
+                            <section class="surface search-panel">
+                                <div class="section-label">Proposer</div>
+                                <form class="search" id="searchForm">
+                                    <input id="movieQuery" placeholder="Film" aria-label="Film"/>
+                                    <button type="submit">
+                                        <span class="material-symbols-rounded" aria-hidden="true">search</span>Rechercher
+                                    </button>
+                                </form>
+                                <p class="message" id="message"></p>
+                                <div class="results" id="results"></div>
+                            </section>
+                            <section class="surface selection-panel">
+                                <div class="section-label">Sélection</div>
+                                <div class="poster-grid" id="movieList"></div>
+                            </section>
+                        </div>
+                    </section>
+                    <section class="view hidden" id="drawsView" data-view="draws">
+                        <div class="draw-layout draw-layout--single">
+                            <section class="surface draw-panel" id="adminPanel">
+                                <div class="panel-head">
+                                    <h2>Tirages</h2>
+                                    <div class="draw-actions">
+                                        <button class="switch-button" id="drawKeepSelectionToggle" type="button" aria-pressed="false">
+                                            <span class="material-symbols-rounded" aria-hidden="true">science</span>
+                                            <span>Tirage test</span>
+                                            <span class="switch-button__track" aria-hidden="true"><span></span></span>
+                                        </button>
+                                        <button id="drawButton">
+                                            <span class="material-symbols-rounded" aria-hidden="true">casino</span>Lancer
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="draw-stage" id="drawStage" aria-live="polite">
+                                    <div class="draw-marker" aria-hidden="true"></div>
+                                    <div class="cover-stack" id="coverStack"></div>
+                                    <div class="winner hidden" id="winnerCard">
+                                        <div class="winner-poster" id="winnerPoster"></div>
+                                        <div>
+                                            <h2>Film tiré</h2>
+                                            <strong id="winnerTitle"></strong>
+                                            <small id="winnerUser"></small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+                        </div>
+                    </section>
+                    <section class="view hidden" id="seenView" data-view="seen">
+                        <section class="surface seen-panel">
+                            <div class="panel-head">
+                                <h2>Films vus</h2>
+                            </div>
+                            <div class="seen-grid" id="seenList"></div>
+                        </section>
+                    </section>
+                    <section class="view hidden" id="profileView" data-view="profile">
+                        <section class="surface compact-panel">
+                            <div class="panel-head">
+                                <h2>Profil</h2>
+                            </div>
+                            <div class="list" id="profileDetails"></div>
+                            <section class="profile-admin admin-only hidden" id="profileAdminTools" aria-label="Gestion des admins">
+                                <div class="panel-head profile-admin__head">
+                                    <h2>Admins</h2>
+                                </div>
+                                <div class="admin-search">
+                                    <span class="material-symbols-rounded" aria-hidden="true">search</span>
+                                    <input id="adminUserSearch" placeholder="Chercher un utilisateur" aria-label="Chercher un utilisateur"/>
+                                </div>
+                                <div class="list user-admin-list" id="userList"></div>
+                            </section>
+                        </section>
+                    </section>
                 </div>
-              </section>
             </div>
-          </section>
-
-          <section class="view hidden" id="seenView" data-view="seen">
-            <section class="surface seen-panel">
-              <div class="panel-head">
-                <h2>Films vus</h2>
-              </div>
-              <div class="seen-grid" id="seenList"></div>
-            </section>
-          </section>
-
-          <section class="view hidden" id="profileView" data-view="profile">
-            <section class="surface compact-panel">
-              <div class="panel-head">
-                <h2>Profil</h2>
-              </div>
-              <div class="list" id="profileDetails"></div>
-              <section class="profile-admin admin-only hidden" id="profileAdminTools" aria-label="Gestion des admins">
-                <div class="panel-head profile-admin__head">
-                  <h2>Admins</h2>
-                </div>
-                <div class="admin-search">
-                  <span class="material-symbols-rounded" aria-hidden="true">search</span>
-                  <input id="adminUserSearch" placeholder="Chercher un utilisateur" aria-label="Chercher un utilisateur" />
-                </div>
-                <div class="list user-admin-list" id="userList"></div>
-              </section>
-            </section>
-          </section>
-        </div>
-      </div>
-
-      <div class="rating-modal hidden" id="ratingModal" role="dialog" aria-modal="true" aria-labelledby="ratingModalTitle">
-        <button class="rating-modal__backdrop" id="ratingModalBackdrop" type="button" aria-label="Fermer"></button>
-        <section class="surface rating-modal__panel">
-          <button class="rating-modal__close" id="ratingModalClose" type="button" aria-label="Fermer">×</button>
-          <div class="rating-modal__content">
-            <div class="rating-modal__poster" id="ratingModalPoster"></div>
-            <div class="rating-modal__meta">
-              <h2 id="ratingModalTitle"></h2>
-              <div class="movie-facts" id="ratingModalFacts"></div>
-              <p class="rating-modal__overview" id="ratingModalOverview"></p>
-              <div class="rating-modal__credits" id="ratingModalCredits"></div>
-              <a class="rating-modal__imdb hidden" id="ratingModalImdb" href="#" target="_blank" rel="noreferrer">Voir sur IMDb</a>
-              <small id="ratingModalAverage"></small>
-              <div class="rating rating--modal" id="ratingModalStars"></div>
+            <div class="rating-modal hidden" id="ratingModal" role="dialog" aria-modal="true" aria-labelledby="ratingModalTitle">
+                <button class="rating-modal__backdrop" id="ratingModalBackdrop" type="button" aria-label="Fermer"></button>
+                <section class="surface rating-modal__panel">
+                    <button class="rating-modal__close" id="ratingModalClose" type="button" aria-label="Fermer">×</button>
+                    <div class="rating-modal__content">
+                        <div class="rating-modal__poster" id="ratingModalPoster"></div>
+                        <div class="rating-modal__meta">
+                            <h2 id="ratingModalTitle"></h2>
+                            <div class="movie-facts" id="ratingModalFacts"></div>
+                            <p class="rating-modal__overview" id="ratingModalOverview"></p>
+                            <div class="rating-modal__credits" id="ratingModalCredits"></div>
+                            <a class="rating-modal__imdb hidden" id="ratingModalImdb" href="#" target="_blank" rel="noreferrer">Voir sur IMDb</a>
+                            <small id="ratingModalAverage"></small>
+                            <div class="rating rating--modal" id="ratingModalStars"></div>
+                        </div>
+                    </div>
+                </section>
             </div>
-          </div>
-        </section>
-      </div>
-    </main>
-
-    <script type="module" src="./src/main.js?v=grandpaff-ui-6"></script>
-  </body>
+        </main>
+        <script type="module" src="./src/main.js?v=grandpaff-ui-6"></script>
+    </body>
 </html>
