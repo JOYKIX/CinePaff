@@ -4,7 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Grand Paff</title>
-    <link rel="stylesheet" href="./styles.css?v=grandpaff-ui-2" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
+  <link rel="stylesheet" href="./styles.css?v=grandpaff-ui-4" />
   </head>
   <body>
     <main class="page auth-page" id="authPage">
@@ -34,15 +35,15 @@
 
           <div class="nav-row" id="primaryNav">
             <nav class="tabs" aria-label="Navigation">
-              <button class="tab" type="button" data-route="home">Accueil</button>
-              <button class="tab admin-only hidden" type="button" data-route="draws">Tirages</button>
-              <button class="tab" type="button" data-route="seen">Films vus</button>
-              <button class="tab" type="button" data-route="profile">Profil</button>
+              <button class="tab" type="button" data-route="home"><span class="material-symbols-rounded" aria-hidden="true">home</span>Accueil</button>
+              <button class="tab admin-only hidden" type="button" data-route="draws"><span class="material-symbols-rounded" aria-hidden="true">casino</span>Tirages</button>
+              <button class="tab" type="button" data-route="seen"><span class="material-symbols-rounded" aria-hidden="true">movie</span>Films vus</button>
+              <button class="tab" type="button" data-route="profile"><span class="material-symbols-rounded" aria-hidden="true">person</span>Profil</button>
             </nav>
 
             <section class="session" aria-label="Utilisateur">
               <span id="currentUser"></span>
-              <button id="logoutButton">Déconnexion</button>
+              <button id="logoutButton"><span class="material-symbols-rounded" aria-hidden="true">logout</span>Déconnexion</button>
             </section>
           </div>
         </header>
@@ -54,7 +55,7 @@
                 <div class="section-label">Proposer</div>
                 <form class="search" id="searchForm">
                   <input id="movieQuery" placeholder="Film" aria-label="Film" />
-                  <button type="submit">Rechercher</button>
+                  <button type="submit"><span class="material-symbols-rounded" aria-hidden="true">search</span>Rechercher</button>
                 </form>
                 <p class="message" id="message"></p>
                 <div class="results" id="results"></div>
@@ -68,11 +69,18 @@
           </section>
 
           <section class="view hidden" id="drawsView" data-view="draws">
-            <div class="draw-layout">
+            <div class="draw-layout draw-layout--single">
               <section class="surface draw-panel" id="adminPanel">
                 <div class="panel-head">
                   <h2>Tirages</h2>
-                  <button id="drawButton">Lancer</button>
+                  <div class="draw-actions">
+                    <button class="switch-button" id="drawKeepSelectionToggle" type="button" aria-pressed="false">
+                      <span class="material-symbols-rounded" aria-hidden="true">science</span>
+                      <span>Tirage test</span>
+                      <span class="switch-button__track" aria-hidden="true"><span></span></span>
+                    </button>
+                    <button id="drawButton"><span class="material-symbols-rounded" aria-hidden="true">casino</span>Lancer</button>
+                  </div>
                 </div>
                 <div class="draw-stage" id="drawStage" aria-live="polite">
                   <div class="draw-marker" aria-hidden="true"></div>
@@ -86,13 +94,6 @@
                     </div>
                   </div>
                 </div>
-              </section>
-
-              <section class="surface admin-panel" id="usersPanel">
-                <div class="panel-head">
-                  <h2>Admin</h2>
-                </div>
-                <div class="list" id="userList"></div>
               </section>
             </div>
           </section>
@@ -112,6 +113,16 @@
                 <h2>Profil</h2>
               </div>
               <div class="list" id="profileDetails"></div>
+              <section class="profile-admin admin-only hidden" id="profileAdminTools" aria-label="Gestion des admins">
+                <div class="panel-head profile-admin__head">
+                  <h2>Admins</h2>
+                </div>
+                <div class="admin-search">
+                  <span class="material-symbols-rounded" aria-hidden="true">search</span>
+                  <input id="adminUserSearch" placeholder="Chercher un utilisateur" aria-label="Chercher un utilisateur" />
+                </div>
+                <div class="list user-admin-list" id="userList"></div>
+              </section>
             </section>
           </section>
         </div>

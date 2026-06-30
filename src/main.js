@@ -52,8 +52,10 @@ const elements = {
   adminTabs: document.querySelectorAll('.admin-only'),
   views: document.querySelectorAll('.view'),
   adminPanel: document.querySelector('#adminPanel'),
-  usersPanel: document.querySelector('#usersPanel'),
+  profileAdminTools: document.querySelector('#profileAdminTools'),
+  adminUserSearch: document.querySelector('#adminUserSearch'),
   drawButton: document.querySelector('#drawButton'),
+  drawKeepSelectionToggle: document.querySelector('#drawKeepSelectionToggle'),
   userList: document.querySelector('#userList'),
   seenList: document.querySelector('#seenList'),
   ratingModal: document.querySelector('#ratingModal'),
@@ -81,6 +83,7 @@ let history = {};
 let route = 'home';
 let activeSeenMovie = null;
 let ratedMovieKey = '';
+let keepSelectionOnDraw = false;
 let movieDetailsRequestId = 0;
 const movieDetailsCache = new Map();
 
@@ -186,6 +189,12 @@ function setMobileMenu(open) {
   }
 }
 
+function setKeepSelectionOnDraw(enabled) {
+  keepSelectionOnDraw = enabled;
+  elements.drawKeepSelectionToggle.classList.toggle('is-on', keepSelectionOnDraw);
+  elements.drawKeepSelectionToggle.setAttribute('aria-pressed', keepSelectionOnDraw ? 'true' : 'false');
+}
+
 async function passwordMatches(password, account) {
   try {
     if (account.passwordSalt && account.passwordHash) {
@@ -266,6 +275,7 @@ function render() {
   storeCurrentUser();
   elements.currentUser.textContent = currentUser.id;
   elements.adminTabs.forEach((tab) => tab.classList.toggle('hidden', !currentUser.isAdmin));
+  elements.profileAdminTools.classList.toggle('hidden', !currentUser.isAdmin);
   syncRouteFromHash();
   renderMovies();
   renderUsers();
@@ -342,6 +352,7 @@ function getCast(details) {
 function renderMovieDetails(movie, details, state = 'ready') {
   const genres = (details?.genres || []).map((genre) => genre.name).filter(Boolean).slice(0, 3).join(', ');
   const facts = [
+    movie.isTestDraw ? createFact('Tirage', 'Test') : null,
     createFact('Année', formatYear(details?.release_date || movie.releaseDate)),
     createFact('Durée', formatRuntime(details?.runtime)),
     createFact('Genre', genres),
@@ -442,30 +453,53 @@ function createEmptyState(text) {
 }
 
 function renderUsers() {
-  const list = Object.entries(users).map(([id, data]) => ({ id, ...data })).sort((a, b) => a.id.localeCompare(b.id));
+  if (!currentUser?.isAdmin) {
+    elements.userList.replaceChildren();
+    return;
+  }
+
+  const query = elements.adminUserSearch.value.trim().toUpperCase();
+  const list = Object.entries(users)
+    .map(([id, data]) => ({ id, ...data }))
+    .filter((account) => !query || account.id.includes(query))
+    .sort((a, b) => a.id.localeCompare(b.id));
+
+  if (!list.length) {
+    elements.userList.replaceChildren(createEmptyState('Aucun utilisateur trouvé'));
+    return;
+  }
+
   elements.userList.replaceChildren(...list.map((account) => {
     const item = document.createElement('div');
-    item.className = 'list-item';
-    const id = document.createElement('span');
+    item.className = 'list-item admin-user-item';
+    const meta = document.createElement('span');
+    meta.className = 'meta';
+    const id = document.createElement('strong');
     id.textContent = account.id;
-    const label = document.createElement('label');
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.checked = Boolean(account.isAdmin);
-    checkbox.addEventListener('change', async () => {
-      const nextValue = checkbox.checked;
-      checkbox.disabled = true;
+    const role = document.createElement('small');
+    role.textContent = account.isAdmin ? 'Admin' : 'Utilisateur';
+    meta.append(id, role);
+
+    const switchButton = document.createElement('button');
+    switchButton.className = 'switch-button switch-button--compact';
+    switchButton.type = 'button';
+    switchButton.setAttribute('aria-pressed', account.isAdmin ? 'true' : 'false');
+    switchButton.setAttribute('aria-label', `${account.isAdmin ? 'Retirer' : 'Ajouter'} ${account.id} admin`);
+    switchButton.classList.toggle('is-on', Boolean(account.isAdmin));
+    switchButton.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">admin_panel_settings</span><span>Admin</span><span class="switch-button__track" aria-hidden="true"><span></span></span>';
+    switchButton.addEventListener('click', async () => {
+      const nextValue = !account.isAdmin;
+      switchButton.disabled = true;
       try {
         await update(ref(db, `users/${account.id}`), { isAdmin: nextValue });
         if (account.id === currentUser.id) currentUser = { ...currentUser, isAdmin: nextValue };
       } catch {
-        checkbox.checked = !nextValue;
+        elements.message.textContent = 'Impossible de modifier cet utilisateur';
       } finally {
-        checkbox.disabled = false;
+        switchButton.disabled = false;
       }
     });
-    label.append(checkbox, 'Admin');
-    item.append(id, label);
+    item.append(meta, switchButton);
     return item;
   }));
 }
@@ -569,10 +603,18 @@ function createRatingButton(movie, value) {
 }
 
 function createSeenMovieCard(movie) {
-  const item = document.createElement('button');
+  const item = document.createElement('article');
   item.className = 'poster-card seen-card';
-  item.type = 'button';
+  item.tabIndex = 0;
+  item.setAttribute('role', 'button');
+  item.setAttribute('aria-label', `Noter ${movie.title}`);
   item.addEventListener('click', () => openRatingModal(movie));
+  item.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openRatingModal(movie);
+    }
+  });
   const imageUrl = posterUrl(movie.posterPath);
   if (imageUrl) {
     const image = document.createElement('img');
@@ -592,6 +634,9 @@ function createSeenMovieCard(movie) {
   title.textContent = movie.title;
   const proposedBy = document.createElement('small');
   proposedBy.textContent = movie.proposedBy;
+  const testBadge = document.createElement('span');
+  testBadge.className = 'seen-card__badge';
+  testBadge.textContent = 'Tirage test';
   const ratingRow = document.createElement('span');
   ratingRow.className = 'seen-card__rating-row';
   const average = document.createElement('span');
@@ -611,8 +656,21 @@ function createSeenMovieCard(movie) {
     marker.ariaLabel = `Votre note ${userRating}/5`;
     ratingRow.append(marker);
   }
-  meta.append(title, proposedBy, ratingRow);
+  meta.append(title, proposedBy);
+  if (movie.isTestDraw) meta.append(testBadge);
+  meta.append(ratingRow);
   item.append(meta);
+  if (currentUser?.isAdmin) {
+    const deleteButton = document.createElement('button');
+    deleteButton.className = 'poster-card__delete seen-card__delete';
+    deleteButton.type = 'button';
+    deleteButton.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">delete</span>Supprimer';
+    deleteButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      deleteSeenMovie(movie);
+    });
+    item.append(deleteButton);
+  }
   return item;
 }
 
@@ -683,6 +741,18 @@ async function rateSeenMovie(key, rating) {
     await set(ref(db, `draw/history/${key}/ratings/${currentUser.id}`), normalizedRating);
   } catch {
     elements.message.textContent = 'Impossible d’enregistrer la note';
+  }
+}
+
+async function deleteSeenMovie(movie) {
+  if (!currentUser?.isAdmin || !movie?.key) return;
+  if (!window.confirm(`Supprimer "${movie.title}" de l'historique ?`)) return;
+  try {
+    await Promise.all((movie.historyKeys?.length ? movie.historyKeys : [movie.key])
+      .map((key) => remove(ref(db, `draw/history/${key}`))));
+    if (activeSeenMovie?.key === movie.key) closeRatingModal();
+  } catch {
+    elements.message.textContent = 'Impossible de supprimer ce film de l’historique';
   }
 }
 
@@ -867,17 +937,19 @@ async function drawMovie() {
   let completed = false;
   try {
     const { key: movieKey, ...pickedMovie } = pickDrawMovie(list);
-    const selected = { ...pickedMovie, movieKey, drawnAt: Date.now() };
+    const selected = { ...pickedMovie, movieKey, drawnAt: Date.now(), isTestDraw: keepSelectionOnDraw };
     await playDrawAnimation(list, selected);
     await set(ref(db, 'draw/current'), selected);
-    await set(ref(db, 'draw/lastDrawn'), selected);
     await push(ref(db, 'draw/history'), selected);
-    await remove(ref(db, 'movies'));
+    if (!keepSelectionOnDraw) {
+      await set(ref(db, 'draw/lastDrawn'), selected);
+      await remove(ref(db, 'movies'));
+    }
     completed = true;
   } catch {
     elements.message.textContent = 'Tirage impossible pour le moment';
   } finally {
-    elements.drawButton.disabled = completed || movieArray().length === 0;
+    elements.drawButton.disabled = (!keepSelectionOnDraw && completed) || movieArray().length === 0;
   }
 }
 
@@ -894,6 +966,10 @@ elements.menuToggle.addEventListener('click', () => {
   const isOpen = elements.menuToggle.getAttribute('aria-expanded') === 'true';
   setMobileMenu(!isOpen);
 });
+elements.drawKeepSelectionToggle.addEventListener('click', () => {
+  setKeepSelectionOnDraw(!keepSelectionOnDraw);
+});
+elements.adminUserSearch.addEventListener('input', renderUsers);
 elements.navRow.addEventListener('click', (event) => {
   if (event.target === elements.navRow) setMobileMenu(false);
 });
@@ -945,5 +1021,6 @@ onValue(ref(db, 'draw/history'), (snapshot) => {
   if (currentUser) renderSeenMovies();
 });
 
+setKeepSelectionOnDraw(false);
 syncRouteFromHash();
 render();
