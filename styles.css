@@ -426,16 +426,87 @@ h2 { margin: 0; font-size: clamp(1.15rem, 2vw, 1.6rem); letter-spacing: 0; }
   border-top: 1px solid rgba(243, 208, 117, .1);
   border-bottom: 1px solid rgba(243, 208, 117, .08);
   background: transparent;
+  isolation: isolate;
 }
-.draw-marker { position: absolute; z-index: 2; inset: 0 auto 0 50%; width: 2px; background: linear-gradient(transparent, var(--gold), transparent); box-shadow: 0 0 28px rgba(243, 208, 117, .9); }
-.cover-stack { position: absolute; top: 50%; left: 0; display: flex; gap: .9rem; transform: translate(var(--track-start, 0), -50%); }
-.draw-cover { width: 8.5rem; aspect-ratio: 2 / 3; object-fit: cover; border-radius: var(--radius-md); border: 1px solid var(--line-strong); box-shadow: 0 18px 38px rgba(0, 0, 0, .38); }
-.is-drawing .cover-stack { animation: draw-roll 5.4s cubic-bezier(.13, .82, .12, 1) forwards; }
-@keyframes draw-roll { to { transform: translate(var(--track-end), -50%); } }
+.draw-stage::before,
+.draw-stage::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  width: min(18vw, 15rem);
+  pointer-events: none;
+}
+.draw-stage::before { left: 0; background: linear-gradient(90deg, rgba(5, 4, 3, .96), transparent); }
+.draw-stage::after { right: 0; background: linear-gradient(270deg, rgba(5, 4, 3, .96), transparent); }
+.draw-marker {
+  position: absolute;
+  z-index: 2;
+  inset: 0 auto 0 50%;
+  width: 2px;
+  background: linear-gradient(transparent 5%, rgba(255, 233, 168, .44) 20%, var(--gold) 50%, rgba(255, 233, 168, .44) 80%, transparent 95%);
+  box-shadow: 0 0 28px rgba(243, 208, 117, .9);
+  opacity: 1;
+  transition: opacity .24s ease;
+}
+.draw-marker::before,
+.draw-marker::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: .72rem;
+  height: .72rem;
+  border-top: 2px solid rgba(255, 233, 168, .74);
+  border-left: 2px solid rgba(255, 233, 168, .74);
+  transform: translateX(-50%) rotate(45deg);
+}
+.draw-marker::before { top: .8rem; }
+.draw-marker::after { bottom: .8rem; transform: translateX(-50%) rotate(225deg); }
+.draw-marker.draw-marker--hidden,
+.draw-stage.has-winner:not(.is-drawing) .draw-marker {
+  opacity: 0 !important;
+  visibility: hidden;
+}
+.cover-stack {
+  position: absolute;
+  z-index: 0;
+  top: 50%;
+  left: 0;
+  display: flex;
+  gap: .9rem;
+  transform: translate(var(--track-start, 0), -50%);
+  will-change: transform, filter;
+}
+.draw-cover {
+  width: 8.5rem;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 18px 38px rgba(0, 0, 0, .38);
+  opacity: .92;
+  transform: translateZ(0);
+}
+.is-drawing .cover-stack { animation: draw-roll 5.8s cubic-bezier(.08, .78, .06, 1) forwards; }
+.is-drawing .draw-cover--winner { animation: draw-winner-pop 5.8s cubic-bezier(.08, .78, .06, 1) forwards; }
+@keyframes draw-roll {
+  0% { transform: translate(var(--track-start), -50%) scale(.985); filter: blur(.9px); }
+  62% { filter: blur(1.25px); }
+  84% { transform: translate(calc(var(--track-end) - 22px), -50%) scale(1); filter: blur(.18px); }
+  93% { transform: translate(calc(var(--track-end) + 7px), -50%) scale(1); filter: blur(0); }
+  100% { transform: translate(var(--track-end), -50%) scale(1); filter: blur(0); }
+}
+@keyframes draw-winner-pop {
+  0%, 76% { box-shadow: 0 18px 38px rgba(0, 0, 0, .38); transform: scale(1); }
+  90% { box-shadow: 0 24px 62px rgba(243, 208, 117, .2), 0 18px 42px rgba(0, 0, 0, .44); transform: scale(1.045); }
+  100% { box-shadow: 0 22px 54px rgba(243, 208, 117, .18), 0 18px 42px rgba(0, 0, 0, .42); transform: scale(1.025); }
+}
 
-.winner { position: absolute; inset: 1rem; display: flex; align-items: center; justify-content: center; gap: 1rem; background: rgba(5, 4, 3, .92); backdrop-filter: blur(18px); border-radius: var(--radius-md); }
+.winner { position: absolute; z-index: 3; inset: 1rem; display: flex; align-items: center; justify-content: center; gap: 1rem; background: radial-gradient(circle at 50% 45%, rgba(243, 208, 117, .08), transparent 24rem), rgba(5, 4, 3, .92); backdrop-filter: blur(18px); border-radius: var(--radius-md); animation: winner-reveal .34s ease both; }
 .winner-poster img { width: min(13rem, 40vw); border-radius: var(--radius-md); border: 1px solid rgba(243, 208, 117, .45); }
 .winner small { display: block; margin-top: .35rem; color: var(--muted); }
+@keyframes winner-reveal { from { opacity: 0; transform: scale(.985); } }
 
 .seen-card { width: 100%; padding: 0; text-align: left; cursor: pointer; }
 .seen-card__rating-row { display: flex; align-items: center; justify-content: space-between; gap: .5rem; color: var(--gold); font-weight: 900; }

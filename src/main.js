@@ -56,6 +56,7 @@ const elements = {
   adminUserSearch: document.querySelector('#adminUserSearch'),
   drawButton: document.querySelector('#drawButton'),
   drawKeepSelectionToggle: document.querySelector('#drawKeepSelectionToggle'),
+  drawMarker: document.querySelector('.draw-marker'),
   userList: document.querySelector('#userList'),
   seenList: document.querySelector('#seenList'),
   ratingModal: document.querySelector('#ratingModal'),
@@ -85,6 +86,7 @@ let activeSeenMovie = null;
 let ratedMovieKey = '';
 let keepSelectionOnDraw = false;
 let movieDetailsRequestId = 0;
+const drawAnimationDuration = 5800;
 const movieDetailsCache = new Map();
 
 function normalizeId(id) {
@@ -399,7 +401,12 @@ async function loadMovieDetails(movie, requestId) {
 }
 
 function renderMovies() {
-  const list = movieArray().sort((a, b) => a.createdAt - b.createdAt);
+  const list = movieArray().sort((a, b) => {
+    const ownA = a.proposedBy === currentUser?.id;
+    const ownB = b.proposedBy === currentUser?.id;
+    if (ownA !== ownB) return ownA ? -1 : 1;
+    return (a.createdAt || 0) - (b.createdAt || 0);
+  });
   const ownMovie = proposedMovie();
   const canPropose = canProposeMovie();
   elements.drawButton.disabled = list.length === 0;
@@ -506,6 +513,8 @@ function renderUsers() {
 
 function renderDraw() {
   elements.winnerCard.classList.toggle('hidden', !draw);
+  elements.drawStage.classList.toggle('has-winner', Boolean(draw));
+  elements.drawMarker.classList.toggle('draw-marker--hidden', Boolean(draw));
   elements.winnerTitle.textContent = draw?.title || '';
   elements.winnerUser.textContent = draw?.proposedBy || '';
   elements.winnerPoster.replaceChildren();
@@ -893,12 +902,12 @@ function pickDrawMovie(list) {
 function buildDrawCovers(list, selected) {
   const covers = list.filter((movie) => movie.posterPath);
   const pool = covers.length ? covers : list;
-  const count = Math.min(Math.max(pool.length * 8, 26), 44);
-  const winnerIndex = Math.max(18, count - 8);
+  const count = Math.min(Math.max(pool.length * 10, 30), 52);
+  const winnerIndex = Math.max(22, count - 9);
   const nodes = Array.from({ length: count }, (_, index) => {
     const movie = index === winnerIndex ? selected : pool[index % pool.length];
     const image = document.createElement('img');
-    image.className = 'draw-cover';
+    image.className = `draw-cover${index === winnerIndex ? ' draw-cover--winner' : ''}`;
     image.src = posterUrl(movie.posterPath, 'w342') || './image/Logo.png';
     image.alt = '';
     return image;
@@ -916,6 +925,8 @@ function buildDrawCovers(list, selected) {
 function playDrawAnimation(list, selected) {
   buildDrawCovers(list, selected);
   elements.winnerCard.classList.add('hidden');
+  elements.drawStage.classList.remove('has-winner');
+  elements.drawMarker.classList.remove('draw-marker--hidden');
   elements.drawStage.classList.remove('is-drawing');
   void elements.drawStage.offsetWidth;
   elements.drawStage.classList.add('is-drawing');
@@ -926,7 +937,7 @@ function playDrawAnimation(list, selected) {
       elements.coverStack.style.removeProperty('--track-start');
       elements.coverStack.style.removeProperty('--track-end');
       resolve();
-    }, 5400);
+    }, drawAnimationDuration);
   });
 }
 
