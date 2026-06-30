@@ -8,7 +8,7 @@
   </head>
   <body>
     <main class="page auth-page" id="authPage">
-      <section class="auth-shell" aria-label="Authentification">
+      <section class="auth-card" aria-label="Authentification">
         <h1 class="brand"><img src="./image/Logo.png" alt="Grand PAFF" /></h1>
         <form id="authForm" class="auth-form">
           <input id="identifier" placeholder="ID" autocomplete="username" aria-label="ID" />
@@ -16,15 +16,14 @@
           <p class="error" id="authError"></p>
           <button id="authSubmit" type="submit">Connexion</button>
         </form>
-        <button class="link-button" id="authToggle">Créer un compte</button>
+        <button class="ghost-button" id="authToggle">Créer un compte</button>
       </section>
     </main>
 
     <main class="page app-page hidden" id="appPage">
-      <div class="app-shell" aria-label="Application">
-        <div class="topline" aria-hidden="true"></div>
-        <header class="app-header">
-          <h1 class="brand brand--hero"><img src="./image/Logo.png" alt="Grand PAFF" /></h1>
+      <div class="app-grid" aria-label="Application">
+        <aside class="sidebar">
+          <h1 class="brand brand--compact"><img src="./image/Logo.png" alt="Grand PAFF" /></h1>
 
           <nav class="tabs" aria-label="Navigation">
             <button class="tab" type="button" data-route="home">Accueil</button>
@@ -37,13 +36,13 @@
             <span id="currentUser"></span>
             <button id="logoutButton">Déconnexion</button>
           </div>
-        </header>
+        </aside>
 
-        <div class="views-shell">
+        <div class="workspace">
           <section class="view" id="homeView" data-view="home">
             <div class="home-layout">
-              <section class="proposal-panel">
-                <div class="section-kicker">Proposer</div>
+              <section class="surface search-panel">
+                <div class="section-label">Proposer</div>
                 <form class="search" id="searchForm">
                   <input id="movieQuery" placeholder="Film" aria-label="Film" />
                   <button type="submit">Rechercher</button>
@@ -52,8 +51,8 @@
                 <div class="results" id="results"></div>
               </section>
 
-              <section class="slate-panel">
-                <div class="section-kicker">Sélection</div>
+              <section class="surface selection-panel">
+                <div class="section-label">Sélection</div>
                 <div class="poster-grid" id="movieList"></div>
               </section>
             </div>
@@ -61,7 +60,7 @@
 
           <section class="view hidden" id="drawsView" data-view="draws">
             <div class="draw-layout">
-              <section class="panel draw-panel" id="adminPanel">
+              <section class="surface draw-panel" id="adminPanel">
                 <div class="panel-head">
                   <h2>Tirages</h2>
                   <button id="drawButton">Lancer</button>
@@ -80,7 +79,7 @@
                 </div>
               </section>
 
-              <section class="panel admin-panel" id="usersPanel">
+              <section class="surface admin-panel" id="usersPanel">
                 <div class="panel-head">
                   <h2>Admin</h2>
                 </div>
@@ -90,7 +89,7 @@
           </section>
 
           <section class="view hidden" id="seenView" data-view="seen">
-            <section class="panel seen-panel">
+            <section class="surface seen-panel">
               <div class="panel-head">
                 <h2>Films vus</h2>
               </div>
@@ -99,7 +98,7 @@
           </section>
 
           <section class="view hidden" id="profileView" data-view="profile">
-            <section class="panel compact-panel">
+            <section class="surface compact-panel">
               <div class="panel-head">
                 <h2>Profil</h2>
               </div>
@@ -111,7 +110,7 @@
 
       <div class="rating-modal hidden" id="ratingModal" role="dialog" aria-modal="true" aria-labelledby="ratingModalTitle">
         <button class="rating-modal__backdrop" id="ratingModalBackdrop" type="button" aria-label="Fermer"></button>
-        <section class="panel rating-modal__panel">
+        <section class="surface rating-modal__panel">
           <button class="rating-modal__close" id="ratingModalClose" type="button" aria-label="Fermer">×</button>
           <div class="rating-modal__content">
             <div class="rating-modal__poster" id="ratingModalPoster"></div>
