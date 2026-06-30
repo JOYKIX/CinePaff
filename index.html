@@ -22,21 +22,23 @@
 
     <main class="page app-page hidden" id="appPage">
       <div class="app-shell" aria-label="Application">
-        <header class="topbar">
-          <h1 class="brand brand--compact"><img src="./image/Logo.png" alt="Grand PAFF" /></h1>
+        <header class="app-header">
+          <h1 class="brand brand--app"><img src="./image/Logo.png" alt="Grand PAFF" /></h1>
 
-          <nav class="tabs" aria-label="Navigation">
-            <button class="tab" type="button" data-route="home">Accueil</button>
-            <button class="tab admin-only hidden" type="button" data-route="draws">Tirages</button>
-            <button class="tab" type="button" data-route="seen">Films vus</button>
-            <button class="tab" type="button" data-route="profile">Profil</button>
-          </nav>
+          <div class="nav-row">
+            <nav class="tabs" aria-label="Navigation">
+              <button class="tab" type="button" data-route="home">Accueil</button>
+              <button class="tab admin-only hidden" type="button" data-route="draws">Tirages</button>
+              <button class="tab" type="button" data-route="seen">Films vus</button>
+              <button class="tab" type="button" data-route="profile">Profil</button>
+            </nav>
+
+            <section class="session" aria-label="Utilisateur">
+              <span id="currentUser"></span>
+              <button id="logoutButton">Déconnexion</button>
+            </section>
+          </div>
         </header>
-
-        <section class="session" aria-label="Utilisateur">
-          <span id="currentUser"></span>
-          <button id="logoutButton">Déconnexion</button>
-        </section>
 
         <div class="workspace">
           <section class="view" id="homeView" data-view="home">
