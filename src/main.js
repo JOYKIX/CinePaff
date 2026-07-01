@@ -41,6 +41,13 @@ const elements = {
   movieQuery: document.querySelector('#movieQuery'),
   message: document.querySelector('#message'),
   results: document.querySelector('#results'),
+  pendingMoviePanel: document.querySelector('#pendingMoviePanel'),
+  pendingMoviePoster: document.querySelector('#pendingMoviePoster'),
+  pendingMovieTitle: document.querySelector('#pendingMovieTitle'),
+  pendingMovieMeta: document.querySelector('#pendingMovieMeta'),
+  warningList: document.querySelector('#warningList'),
+  cancelMovieSelection: document.querySelector('#cancelMovieSelection'),
+  confirmMovieSelection: document.querySelector('#confirmMovieSelection'),
   movieList: document.querySelector('#movieList'),
   winnerCard: document.querySelector('#winnerCard'),
   winnerTitle: document.querySelector('#winnerTitle'),
@@ -70,6 +77,18 @@ const elements = {
   ratingModalAverage: document.querySelector('#ratingModalAverage'),
   ratingModalPoster: document.querySelector('#ratingModalPoster'),
   ratingModalStars: document.querySelector('#ratingModalStars'),
+  warningModal: document.querySelector('#warningModal'),
+  warningModalBackdrop: document.querySelector('#warningModalBackdrop'),
+  warningModalClose: document.querySelector('#warningModalClose'),
+  warningModalTitle: document.querySelector('#warningModalTitle'),
+  warningModalIntro: document.querySelector('#warningModalIntro'),
+  warningModalList: document.querySelector('#warningModalList'),
+  deleteHistoryModal: document.querySelector('#deleteHistoryModal'),
+  deleteHistoryBackdrop: document.querySelector('#deleteHistoryBackdrop'),
+  deleteHistoryClose: document.querySelector('#deleteHistoryClose'),
+  deleteHistoryCancel: document.querySelector('#deleteHistoryCancel'),
+  deleteHistoryConfirm: document.querySelector('#deleteHistoryConfirm'),
+  deleteHistoryText: document.querySelector('#deleteHistoryText'),
   profileDetails: document.querySelector('#profileDetails'),
 };
 
@@ -86,8 +105,22 @@ let activeSeenMovie = null;
 let ratedMovieKey = '';
 let keepSelectionOnDraw = false;
 let movieDetailsRequestId = 0;
+let activeMovieDetailsKey = '';
+let pendingMovie = null;
+let pendingWarnings = new Set();
+let pendingHistoryDeleteMovie = null;
 const drawAnimationDuration = 5800;
 const movieDetailsCache = new Map();
+const triggerWarningOptions = [
+  { id: 'violence', label: 'Violence' },
+  { id: 'blood', label: 'Sang' },
+  { id: 'sexual_content', label: 'Sexe / nudité' },
+  { id: 'sexual_violence', label: 'Violence sexuelle' },
+  { id: 'drugs', label: 'Drogues' },
+  { id: 'suicide', label: 'Suicide' },
+  { id: 'horror', label: 'Horreur / angoisse' },
+  { id: 'discrimination', label: 'Discrimination' },
+];
 
 function normalizeId(id) {
   return id.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
@@ -321,6 +354,50 @@ function createFact(label, value) {
   return fact;
 }
 
+function getTriggerWarnings(movie) {
+  const rawWarnings = Array.isArray(movie?.triggerWarnings) ? movie.triggerWarnings : [];
+  return rawWarnings
+    .map((warning) => {
+      if (typeof warning === 'string') {
+        const option = triggerWarningOptions.find((item) => item.id === warning || item.label === warning);
+        return option || { id: warning, label: warning };
+      }
+      const option = triggerWarningOptions.find((item) => item.id === warning?.id);
+      return option || (warning?.label ? { id: warning.id || warning.label, label: warning.label } : null);
+    })
+    .filter(Boolean);
+}
+
+function hasTriggerWarnings(movie) {
+  return getTriggerWarnings(movie).length > 0;
+}
+
+function createWarningButton(movie) {
+  if (!hasTriggerWarnings(movie)) return null;
+  const button = document.createElement('button');
+  button.className = 'warning-button';
+  button.type = 'button';
+  button.title = 'Voir les trigger warnings';
+  button.setAttribute('aria-label', `Voir les trigger warnings de ${movie.title}`);
+  button.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">warning</span>';
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    openWarningModal(movie);
+  });
+  return button;
+}
+
+function createMovieTitleRow(movie) {
+  const row = document.createElement('span');
+  row.className = 'movie-title-row';
+  const title = document.createElement('strong');
+  title.textContent = movie.title;
+  row.append(title);
+  const warningButton = createWarningButton(movie);
+  if (warningButton) row.append(warningButton);
+  return row;
+}
+
 function getMovieDetailsCacheKey(movie) {
   return movie.tmdbId ? `tmdb-${movie.tmdbId}` : `movie-${getSeenMovieId(movie)}`;
 }
@@ -392,10 +469,10 @@ function renderMovieDetails(movie, details, state = 'ready') {
 async function loadMovieDetails(movie, requestId) {
   try {
     const details = await fetchMovieDetails(movie);
-    if (requestId !== movieDetailsRequestId || activeSeenMovie?.key !== movie.key) return;
+    if (requestId !== movieDetailsRequestId || activeMovieDetailsKey !== getMovieDetailsCacheKey(movie)) return;
     renderMovieDetails(movie, details, details ? 'ready' : 'error');
   } catch {
-    if (requestId !== movieDetailsRequestId || activeSeenMovie?.key !== movie.key) return;
+    if (requestId !== movieDetailsRequestId || activeMovieDetailsKey !== getMovieDetailsCacheKey(movie)) return;
     renderMovieDetails(movie, null, 'error');
   }
 }
@@ -411,6 +488,7 @@ function renderMovies() {
   const canPropose = canProposeMovie();
   elements.drawButton.disabled = list.length === 0;
   elements.searchForm.classList.toggle('hidden', !canPropose);
+  if (!canPropose && pendingMovie) clearPendingMovie();
   elements.message.textContent = wasLastDrawnUser() ? 'Dernier tiré au sort' : ownMovie ? 'Film proposé' : '';
   if (!list.length) {
     elements.movieList.replaceChildren(createEmptyState('Aucun film en sélection'));
@@ -420,6 +498,16 @@ function renderMovies() {
   elements.movieList.replaceChildren(...list.map((movie) => {
     const item = document.createElement('article');
     item.className = 'poster-card';
+    item.tabIndex = 0;
+    item.setAttribute('role', 'button');
+    item.setAttribute('aria-label', `Voir la fiche de ${movie.title}`);
+    item.addEventListener('click', () => openRatingModal(movie, { allowRating: false }));
+    item.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        openRatingModal(movie, { allowRating: false });
+      }
+    });
     const imageUrl = posterUrl(movie.posterPath);
     if (imageUrl) {
       const image = document.createElement('img');
@@ -434,8 +522,7 @@ function renderMovies() {
     }
     const meta = document.createElement('div');
     meta.className = 'poster-card__meta';
-    const title = document.createElement('strong');
-    title.textContent = movie.title;
+    const title = createMovieTitleRow(movie);
     const proposedBy = document.createElement('small');
     proposedBy.textContent = movie.proposedBy;
     meta.append(title, proposedBy);
@@ -444,8 +531,11 @@ function renderMovies() {
       const deleteButton = document.createElement('button');
       deleteButton.className = 'poster-card__delete';
       deleteButton.type = 'button';
-      deleteButton.textContent = 'Supprimer';
-      deleteButton.addEventListener('click', () => deleteMovie(movie.key));
+      deleteButton.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">delete</span>Supprimer';
+      deleteButton.addEventListener('click', (event) => {
+        event.stopPropagation();
+        deleteMovie(movie.key);
+      });
       item.append(deleteButton);
     }
     return item;
@@ -639,8 +729,7 @@ function createSeenMovieCard(movie) {
 
   const meta = document.createElement('div');
   meta.className = 'poster-card__meta';
-  const title = document.createElement('strong');
-  title.textContent = movie.title;
+  const title = createMovieTitleRow(movie);
   const proposedBy = document.createElement('small');
   proposedBy.textContent = movie.proposedBy;
   const testBadge = document.createElement('span');
@@ -676,7 +765,7 @@ function createSeenMovieCard(movie) {
     deleteButton.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">delete</span>Supprimer';
     deleteButton.addEventListener('click', (event) => {
       event.stopPropagation();
-      deleteSeenMovie(movie);
+      openDeleteHistoryModal(movie);
     });
     item.append(deleteButton);
   }
@@ -696,19 +785,25 @@ function renderSeenMovies() {
   }
 }
 
-function openRatingModal(movie) {
-  activeSeenMovie = movie;
+function openRatingModal(movie, options = {}) {
+  const allowRating = options.allowRating !== false;
+  activeSeenMovie = allowRating ? movie : null;
+  activeMovieDetailsKey = getMovieDetailsCacheKey(movie);
   const requestId = ++movieDetailsRequestId;
   elements.ratingModalTitle.textContent = movie.title;
-  const averageRating = getAverageRating(movie);
-  const ratingCount = getRatingCount(movie);
-  const userRating = getUserRating(movie);
-  const averageLabel = averageRating
-    ? `Moyenne ${averageRating}/5 - ${ratingCount} note${ratingCount > 1 ? 's' : ''}`
-    : 'Aucune note pour le moment';
-  elements.ratingModalAverage.textContent = userRating
-    ? `${averageLabel} - Votre note ${userRating}/5`
-    : averageLabel;
+  if (allowRating) {
+    const averageRating = getAverageRating(movie);
+    const ratingCount = getRatingCount(movie);
+    const userRating = getUserRating(movie);
+    const averageLabel = averageRating
+      ? `Moyenne ${averageRating}/5 - ${ratingCount} note${ratingCount > 1 ? 's' : ''}`
+      : 'Aucune note pour le moment';
+    elements.ratingModalAverage.textContent = userRating
+      ? `${averageLabel} - Votre note ${userRating}/5`
+      : averageLabel;
+  } else {
+    elements.ratingModalAverage.textContent = movie.proposedBy ? `Proposé par ${movie.proposedBy}` : '';
+  }
   elements.ratingModalPoster.replaceChildren();
   const imageUrl = posterUrl(movie.posterPath, 'w500');
   if (imageUrl) {
@@ -724,15 +819,53 @@ function openRatingModal(movie) {
   }
   renderMovieDetails(movie, null, 'loading');
   loadMovieDetails(movie, requestId);
-  elements.ratingModalStars.replaceChildren(...[1, 2, 3, 4, 5].map((value) => createRatingButton(movie, value)));
-  elements.ratingModalStars.classList.toggle('rating--confirmed', movie.key === ratedMovieKey && getUserRating(movie) > 0);
+  elements.ratingModalStars.replaceChildren(...(allowRating ? [1, 2, 3, 4, 5].map((value) => createRatingButton(movie, value)) : []));
+  elements.ratingModalStars.classList.toggle('hidden', !allowRating);
+  elements.ratingModalStars.classList.toggle('rating--confirmed', allowRating && movie.key === ratedMovieKey && getUserRating(movie) > 0);
   elements.ratingModal.classList.remove('hidden');
 }
 
 function closeRatingModal() {
   activeSeenMovie = null;
+  activeMovieDetailsKey = '';
   movieDetailsRequestId += 1;
   elements.ratingModal.classList.add('hidden');
+}
+
+function openWarningModal(movie) {
+  const warnings = getTriggerWarnings(movie);
+  if (!warnings.length) return;
+  elements.warningModalTitle.textContent = movie.title;
+  elements.warningModalIntro.textContent = `Warnings ajoutés par ${movie.warningBy || movie.proposedBy || 'la personne qui a proposé le film'}.`;
+  elements.warningModalList.replaceChildren(...warnings.map((warning) => {
+    const item = document.createElement('span');
+    item.className = 'warning-modal-item';
+    const icon = document.createElement('span');
+    icon.className = 'material-symbols-rounded';
+    icon.ariaHidden = 'true';
+    icon.textContent = 'warning';
+    item.append(icon, warning.label);
+    return item;
+  }));
+  elements.warningModal.classList.remove('hidden');
+}
+
+function closeWarningModal() {
+  elements.warningModal.classList.add('hidden');
+  elements.warningModalList.replaceChildren();
+}
+
+function openDeleteHistoryModal(movie) {
+  if (!currentUser?.isAdmin || !movie?.key) return;
+  pendingHistoryDeleteMovie = movie;
+  elements.deleteHistoryText.textContent = `Supprimer "${movie.title}" de l'historique ? Cette action retirera aussi ses notes.`;
+  elements.deleteHistoryModal.classList.remove('hidden');
+}
+
+function closeDeleteHistoryModal() {
+  pendingHistoryDeleteMovie = null;
+  elements.deleteHistoryModal.classList.add('hidden');
+  elements.deleteHistoryConfirm.disabled = false;
 }
 
 async function rateSeenMovie(key, rating) {
@@ -755,11 +888,11 @@ async function rateSeenMovie(key, rating) {
 
 async function deleteSeenMovie(movie) {
   if (!currentUser?.isAdmin || !movie?.key) return;
-  if (!window.confirm(`Supprimer "${movie.title}" de l'historique ?`)) return;
   try {
     await Promise.all((movie.historyKeys?.length ? movie.historyKeys : [movie.key])
       .map((key) => remove(ref(db, `draw/history/${key}`))));
     if (activeSeenMovie?.key === movie.key) closeRatingModal();
+    closeDeleteHistoryModal();
   } catch {
     elements.message.textContent = 'Impossible de supprimer ce film de l’historique';
   }
@@ -856,28 +989,112 @@ function createMovieButton(movie) {
   const title = document.createElement('span');
   title.textContent = movie.title;
   button.append(title);
-  button.addEventListener('click', () => proposeMovie(movie));
+  button.addEventListener('click', () => selectPendingMovie(movie));
   return button;
 }
 
-async function proposeMovie(movie) {
+function movieFromSearchResult(movie) {
+  return {
+    key: `tmdb-${movie.id}`,
+    tmdbId: movie.id,
+    title: movie.title,
+    originalTitle: movie.original_title || movie.title,
+    posterPath: movie.poster_path || '',
+    releaseDate: movie.release_date || '',
+    overview: movie.overview || '',
+  };
+}
+
+function renderWarningSwitches() {
+  elements.warningList.replaceChildren(...triggerWarningOptions.map((warning) => {
+    const button = document.createElement('button');
+    const enabled = pendingWarnings.has(warning.id);
+    button.className = 'switch-button switch-button--compact warning-switch';
+    button.type = 'button';
+    button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+    button.classList.toggle('is-on', enabled);
+    button.innerHTML = `<span>${warning.label}</span><span class="switch-button__track" aria-hidden="true"><span></span></span>`;
+    button.addEventListener('click', () => {
+      if (pendingWarnings.has(warning.id)) pendingWarnings.delete(warning.id);
+      else pendingWarnings.add(warning.id);
+      renderPendingMovie();
+    });
+    return button;
+  }));
+}
+
+function renderPendingMovie() {
+  elements.pendingMoviePanel.classList.toggle('hidden', !pendingMovie);
+  if (!pendingMovie) {
+    elements.pendingMoviePoster.replaceChildren();
+    elements.pendingMovieTitle.textContent = '';
+    elements.pendingMovieMeta.textContent = '';
+    elements.warningList.replaceChildren();
+    return;
+  }
+
+  elements.pendingMoviePoster.replaceChildren();
+  const imageUrl = posterUrl(pendingMovie.posterPath, 'w185');
+  if (imageUrl) {
+    const image = document.createElement('img');
+    image.src = imageUrl;
+    image.alt = '';
+    elements.pendingMoviePoster.append(image);
+  } else {
+    const fallback = document.createElement('div');
+    fallback.className = 'poster-card__fallback';
+    fallback.textContent = pendingMovie.title;
+    elements.pendingMoviePoster.append(fallback);
+  }
+  elements.pendingMovieTitle.textContent = pendingMovie.title;
+  elements.pendingMovieMeta.textContent = formatYear(pendingMovie.releaseDate) || 'Année inconnue';
+  renderWarningSwitches();
+}
+
+function selectPendingMovie(movie) {
   if (!canProposeMovie()) {
     elements.message.textContent = wasLastDrawnUser() ? 'Dernier tiré au sort' : 'Film déjà proposé';
     return;
   }
+  pendingMovie = movieFromSearchResult(movie);
+  pendingWarnings = new Set();
+  elements.message.textContent = 'Choisis les warnings puis valide le film';
+  renderPendingMovie();
+}
+
+function clearPendingMovie() {
+  pendingMovie = null;
+  pendingWarnings = new Set();
+  renderPendingMovie();
+}
+
+async function proposeMovie() {
+  if (!canProposeMovie()) {
+    elements.message.textContent = wasLastDrawnUser() ? 'Dernier tiré au sort' : 'Film déjà proposé';
+    return;
+  }
+  if (!pendingMovie) return;
+
+  const triggerWarnings = triggerWarningOptions
+    .filter((warning) => pendingWarnings.has(warning.id))
+    .map((warning) => ({ id: warning.id, label: warning.label }));
+
   try {
     await push(ref(db, 'movies'), {
-      tmdbId: movie.id,
-      title: movie.title,
-      originalTitle: movie.original_title || movie.title,
-      posterPath: movie.poster_path || '',
-      releaseDate: movie.release_date || '',
-      overview: movie.overview || '',
+      tmdbId: pendingMovie.tmdbId,
+      title: pendingMovie.title,
+      originalTitle: pendingMovie.originalTitle,
+      posterPath: pendingMovie.posterPath,
+      releaseDate: pendingMovie.releaseDate,
+      overview: pendingMovie.overview,
       proposedBy: currentUser.id,
+      triggerWarnings,
+      warningBy: currentUser.id,
       createdAt: Date.now(),
     });
     elements.results.replaceChildren();
     elements.movieQuery.value = '';
+    clearPendingMovie();
     elements.message.textContent = 'Film proposé';
   } catch {
     elements.message.textContent = 'Impossible d’ajouter le film';
@@ -999,12 +1216,39 @@ elements.logoutButton.addEventListener('click', () => {
   render();
 });
 elements.searchForm.addEventListener('submit', searchMovies);
+elements.cancelMovieSelection.addEventListener('click', () => {
+  clearPendingMovie();
+  elements.message.textContent = '';
+});
+elements.confirmMovieSelection.addEventListener('click', proposeMovie);
 elements.drawButton.addEventListener('click', drawMovie);
 elements.ratingModalBackdrop.addEventListener('click', closeRatingModal);
 elements.ratingModalClose.addEventListener('click', closeRatingModal);
+elements.warningModalBackdrop.addEventListener('click', closeWarningModal);
+elements.warningModalClose.addEventListener('click', closeWarningModal);
+elements.deleteHistoryBackdrop.addEventListener('click', closeDeleteHistoryModal);
+elements.deleteHistoryClose.addEventListener('click', closeDeleteHistoryModal);
+elements.deleteHistoryCancel.addEventListener('click', closeDeleteHistoryModal);
+elements.deleteHistoryConfirm.addEventListener('click', async () => {
+  if (!pendingHistoryDeleteMovie) return;
+  const movie = pendingHistoryDeleteMovie;
+  elements.deleteHistoryConfirm.disabled = true;
+  await deleteSeenMovie(movie);
+  if (!elements.deleteHistoryModal.classList.contains('hidden')) {
+    elements.deleteHistoryConfirm.disabled = false;
+  }
+});
 window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && elements.menuToggle.getAttribute('aria-expanded') === 'true') {
     setMobileMenu(false);
+    return;
+  }
+  if (event.key === 'Escape' && !elements.deleteHistoryModal.classList.contains('hidden')) {
+    closeDeleteHistoryModal();
+    return;
+  }
+  if (event.key === 'Escape' && !elements.warningModal.classList.contains('hidden')) {
+    closeWarningModal();
     return;
   }
   if (event.key === 'Escape' && !elements.ratingModal.classList.contains('hidden')) closeRatingModal();

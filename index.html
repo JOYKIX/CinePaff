@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
         <title>Grand Paff</title>
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0"/>
-        <link rel="stylesheet" href="./styles.css?v=grandpaff-ui-6"/>
+        <link rel="stylesheet" href="./styles.css?v=grandpaff-ui-7"/>
         <link rel="icon" href="image/Logo.png" type="image/png">
     </head>
     <body>
@@ -65,6 +65,32 @@
                                 </form>
                                 <p class="message" id="message"></p>
                                 <div class="results" id="results"></div>
+                                <section class="pending-movie hidden" id="pendingMoviePanel" aria-label="Film sélectionné">
+                                    <div class="pending-movie__head">
+                                        <div class="pending-movie__poster" id="pendingMoviePoster"></div>
+                                        <div>
+                                            <small>Film sélectionné</small>
+                                            <strong id="pendingMovieTitle"></strong>
+                                            <span id="pendingMovieMeta"></span>
+                                        </div>
+                                    </div>
+                                    <div class="warning-editor">
+                                        <div class="warning-editor__head">
+                                            <span class="material-symbols-rounded" aria-hidden="true">warning</span>
+                                            <div>
+                                                <strong>Trigger warnings</strong>
+                                                <small>Optionnel, visible avant d’ouvrir la fiche.</small>
+                                            </div>
+                                        </div>
+                                        <div class="warning-switches" id="warningList"></div>
+                                    </div>
+                                    <div class="pending-movie__actions">
+                                        <button class="ghost-button" id="cancelMovieSelection" type="button">Annuler</button>
+                                        <button id="confirmMovieSelection" type="button">
+                                            <span class="material-symbols-rounded" aria-hidden="true">add</span>Ajouter
+                                        </button>
+                                    </div>
+                                </section>
                             </section>
                             <section class="surface selection-panel">
                                 <div class="section-label">Sélection</div>
@@ -149,7 +175,32 @@
                     </div>
                 </section>
             </div>
+            <div class="app-modal hidden" id="warningModal" role="dialog" aria-modal="true" aria-labelledby="warningModalTitle">
+                <button class="app-modal__backdrop" id="warningModalBackdrop" type="button" aria-label="Fermer"></button>
+                <section class="app-modal__panel">
+                    <button class="rating-modal__close" id="warningModalClose" type="button" aria-label="Fermer">×</button>
+                    <span class="material-symbols-rounded app-modal__icon app-modal__icon--danger" aria-hidden="true">warning</span>
+                    <h2 id="warningModalTitle">Trigger warnings</h2>
+                    <p id="warningModalIntro"></p>
+                    <div class="warning-modal-list" id="warningModalList"></div>
+                </section>
+            </div>
+            <div class="app-modal hidden" id="deleteHistoryModal" role="dialog" aria-modal="true" aria-labelledby="deleteHistoryTitle">
+                <button class="app-modal__backdrop" id="deleteHistoryBackdrop" type="button" aria-label="Annuler"></button>
+                <section class="app-modal__panel app-modal__panel--compact">
+                    <button class="rating-modal__close" id="deleteHistoryClose" type="button" aria-label="Annuler">×</button>
+                    <span class="material-symbols-rounded app-modal__icon app-modal__icon--danger" aria-hidden="true">delete</span>
+                    <h2 id="deleteHistoryTitle">Supprimer de l’historique</h2>
+                    <p id="deleteHistoryText"></p>
+                    <div class="app-modal__actions">
+                        <button class="ghost-button" id="deleteHistoryCancel" type="button">Annuler</button>
+                        <button class="danger-button" id="deleteHistoryConfirm" type="button">
+                            <span class="material-symbols-rounded" aria-hidden="true">delete</span>Supprimer
+                        </button>
+                    </div>
+                </section>
+            </div>
         </main>
-        <script type="module" src="./src/main.js?v=grandpaff-ui-6"></script>
+        <script type="module" src="./src/main.js?v=grandpaff-ui-7"></script>
     </body>
 </html>
