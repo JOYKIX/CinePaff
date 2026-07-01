@@ -89,6 +89,19 @@ const elements = {
   deleteHistoryCancel: document.querySelector('#deleteHistoryCancel'),
   deleteHistoryConfirm: document.querySelector('#deleteHistoryConfirm'),
   deleteHistoryText: document.querySelector('#deleteHistoryText'),
+  availabilityForm: document.querySelector('#availabilityForm'),
+  availabilityRecurringMode: document.querySelector('#availabilityRecurringMode'),
+  availabilityDateMode: document.querySelector('#availabilityDateMode'),
+  availabilityDateField: document.querySelector('#availabilityDateField'),
+  availabilityDate: document.querySelector('#availabilityDate'),
+  availabilityDayPicker: document.querySelector('#availabilityDayPicker'),
+  availabilityStart: document.querySelector('#availabilityStart'),
+  availabilityEnd: document.querySelector('#availabilityEnd'),
+  availabilityAllDay: document.querySelector('#availabilityAllDay'),
+  availabilityList: document.querySelector('#availabilityList'),
+  availabilityRuntime: document.querySelector('#availabilityRuntime'),
+  availabilityRecommendations: document.querySelector('#availabilityRecommendations'),
+  availabilityCalendar: document.querySelector('#availabilityCalendar'),
   profileDetails: document.querySelector('#profileDetails'),
 };
 
@@ -97,6 +110,7 @@ let memoryUser = null;
 let currentUser = readStoredUser();
 let movies = {};
 let users = {};
+let availability = {};
 let draw = null;
 let lastDrawn = null;
 let history = {};
@@ -109,8 +123,25 @@ let activeMovieDetailsKey = '';
 let pendingMovie = null;
 let pendingWarnings = new Set();
 let pendingHistoryDeleteMovie = null;
+let availabilityMode = 'weekly';
+let availabilitySelectedDays = new Set([(new Date().getDay() + 6) % 7]);
+let availabilityAllDay = false;
+let drawRuntimeMinutes = null;
+let drawRuntimeKey = '';
 const drawAnimationDuration = 5800;
 const movieDetailsCache = new Map();
+const availabilityStepMinutes = 30;
+const availabilityHorizonDays = 14;
+const defaultMovieRuntimeMinutes = 120;
+const dayOptions = [
+  { id: 0, short: 'Lun', long: 'Lundi' },
+  { id: 1, short: 'Mar', long: 'Mardi' },
+  { id: 2, short: 'Mer', long: 'Mercredi' },
+  { id: 3, short: 'Jeu', long: 'Jeudi' },
+  { id: 4, short: 'Ven', long: 'Vendredi' },
+  { id: 5, short: 'Sam', long: 'Samedi' },
+  { id: 6, short: 'Dim', long: 'Dimanche' },
+];
 const triggerWarningOptions = [
   { id: 'violence', label: 'Violence' },
   { id: 'blood', label: 'Sang' },
@@ -259,7 +290,7 @@ function setRoute(nextRoute) {
 
 function syncRouteFromHash() {
   const nextRoute = window.location.hash.replace('#', '') || 'home';
-  setRoute(['home', 'draws', 'seen', 'profile'].includes(nextRoute) ? nextRoute : 'home');
+  setRoute(['home', 'draws', 'seen', 'availability', 'profile'].includes(nextRoute) ? nextRoute : 'home');
 }
 
 function formatDate(timestamp) {
@@ -316,6 +347,7 @@ function render() {
   renderUsers();
   renderDraw();
   renderSeenMovies();
+  renderAvailability();
   renderProfile();
 }
 
@@ -334,6 +366,59 @@ function formatRuntime(minutes) {
   const remainingMinutes = value % 60;
   if (!hours) return `${remainingMinutes} min`;
   return remainingMinutes ? `${hours} h ${remainingMinutes}` : `${hours} h`;
+}
+
+function padNumber(value) {
+  return String(value).padStart(2, '0');
+}
+
+function toDateKey(date) {
+  return `${date.getFullYear()}-${padNumber(date.getMonth() + 1)}-${padNumber(date.getDate())}`;
+}
+
+function dateFromKey(key) {
+  const [year, month, day] = key.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function startOfDay(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
+function addDays(date, days) {
+  const nextDate = new Date(date);
+  nextDate.setDate(nextDate.getDate() + days);
+  return nextDate;
+}
+
+function getWeekdayIndex(date) {
+  return (date.getDay() + 6) % 7;
+}
+
+function parseTimeMinutes(time) {
+  const [hours, minutes] = String(time || '').split(':').map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  return (hours * 60) + minutes;
+}
+
+function formatTimeFromMinutes(minutes) {
+  const normalized = ((minutes % 1440) + 1440) % 1440;
+  return `${padNumber(Math.floor(normalized / 60))}:${padNumber(normalized % 60)}`;
+}
+
+function formatSlotRange(start, end) {
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  const day = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: '2-digit', month: 'short' }).format(startDate);
+  const startTime = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' }).format(startDate);
+  const endTime = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' }).format(endDate);
+  const nextDay = toDateKey(startDate) !== toDateKey(endDate) ? ' + lendemain' : '';
+  return `${day} · ${startTime} - ${endTime}${nextDay}`;
+}
+
+function roundUpToStep(timestamp, stepMinutes) {
+  const stepMs = stepMinutes * 60 * 1000;
+  return Math.ceil(timestamp / stepMs) * stepMs;
 }
 
 function formatTmdbScore(score) {
@@ -898,6 +983,295 @@ async function deleteSeenMovie(movie) {
   }
 }
 
+function setAvailabilityMode(mode) {
+  availabilityMode = mode;
+  const isWeekly = availabilityMode === 'weekly';
+  elements.availabilityRecurringMode.classList.toggle('is-on', isWeekly);
+  elements.availabilityRecurringMode.setAttribute('aria-pressed', isWeekly ? 'true' : 'false');
+  elements.availabilityDateMode.classList.toggle('is-on', !isWeekly);
+  elements.availabilityDateMode.setAttribute('aria-pressed', isWeekly ? 'false' : 'true');
+  elements.availabilityDateField.classList.toggle('hidden', isWeekly);
+  elements.availabilityDayPicker.classList.toggle('hidden', !isWeekly);
+  renderAvailabilityDayPicker();
+}
+
+function setAvailabilityAllDay(enabled) {
+  availabilityAllDay = enabled;
+  elements.availabilityAllDay.classList.toggle('is-on', availabilityAllDay);
+  elements.availabilityAllDay.setAttribute('aria-pressed', availabilityAllDay ? 'true' : 'false');
+  elements.availabilityStart.disabled = availabilityAllDay;
+  elements.availabilityEnd.disabled = availabilityAllDay;
+}
+
+function renderAvailabilityDayPicker() {
+  const allSelected = availabilitySelectedDays.size === dayOptions.length;
+  const allButton = document.createElement('button');
+  allButton.className = `day-chip${allSelected ? ' is-on' : ''}`;
+  allButton.type = 'button';
+  allButton.textContent = 'Tous';
+  allButton.setAttribute('aria-pressed', allSelected ? 'true' : 'false');
+  allButton.addEventListener('click', () => {
+    availabilitySelectedDays = allSelected ? new Set() : new Set(dayOptions.map((day) => day.id));
+    renderAvailabilityDayPicker();
+  });
+
+  const dayButtons = dayOptions.map((day) => {
+    const button = document.createElement('button');
+    const selected = availabilitySelectedDays.has(day.id);
+    button.className = `day-chip${selected ? ' is-on' : ''}`;
+    button.type = 'button';
+    button.textContent = day.short;
+    button.title = day.long;
+    button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    button.addEventListener('click', () => {
+      if (availabilitySelectedDays.has(day.id)) availabilitySelectedDays.delete(day.id);
+      else availabilitySelectedDays.add(day.id);
+      renderAvailabilityDayPicker();
+    });
+    return button;
+  });
+
+  elements.availabilityDayPicker.replaceChildren(allButton, ...dayButtons);
+}
+
+function getUserAvailabilityEntries(userId) {
+  return Object.entries(availability[userId] || {})
+    .map(([key, entry]) => ({ key, ...entry }))
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+}
+
+function describeAvailabilityEntry(entry) {
+  const dayText = entry.type === 'date'
+    ? new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: '2-digit', month: 'long' }).format(dateFromKey(entry.date))
+    : (entry.days?.length === dayOptions.length
+      ? 'Tous les jours'
+      : (entry.days || []).map((id) => dayOptions.find((day) => day.id === id)?.long).filter(Boolean).join(', '));
+
+  if (entry.allDay) return `${dayText} · toute la journée`;
+  const overnight = parseTimeMinutes(entry.end) <= parseTimeMinutes(entry.start);
+  return `${dayText} · ${entry.start} - ${entry.end}${overnight ? ' (+ lendemain)' : ''}`;
+}
+
+function renderAvailabilityList() {
+  const entries = getUserAvailabilityEntries(currentUser.id);
+  if (!entries.length) {
+    elements.availabilityList.replaceChildren(createEmptyState('Aucune disponibilité enregistrée'));
+    return;
+  }
+
+  elements.availabilityList.replaceChildren(...entries.map((entry) => {
+    const item = document.createElement('div');
+    item.className = 'availability-list-item';
+    const meta = document.createElement('span');
+    meta.className = 'meta';
+    const title = document.createElement('strong');
+    title.textContent = entry.type === 'date' ? 'Jour précis' : 'Récurrent';
+    const detail = document.createElement('small');
+    detail.textContent = describeAvailabilityEntry(entry);
+    meta.append(title, detail);
+
+    const deleteButton = document.createElement('button');
+    deleteButton.className = 'poster-card__delete availability-delete';
+    deleteButton.type = 'button';
+    deleteButton.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">delete</span>';
+    deleteButton.setAttribute('aria-label', 'Supprimer cette disponibilité');
+    deleteButton.addEventListener('click', async () => {
+      await remove(ref(db, `availability/${currentUser.id}/${entry.key}`));
+    });
+    item.append(meta, deleteButton);
+    return item;
+  }));
+}
+
+function getAvailabilityRuntime() {
+  return drawRuntimeMinutes || defaultMovieRuntimeMinutes;
+}
+
+function getDrawRuntimeLabel() {
+  if (!draw) return `Aucun film tiré · estimation ${formatRuntime(defaultMovieRuntimeMinutes)}`;
+  if (drawRuntimeMinutes) return `${draw.title} · ${formatRuntime(drawRuntimeMinutes)}`;
+  return `${draw.title} · estimation ${formatRuntime(defaultMovieRuntimeMinutes)}`;
+}
+
+function buildAvailabilityIntervals() {
+  const today = new Date(startOfDay(new Date()));
+  const intervalsByUser = new Map();
+  Object.entries(availability).forEach(([userId, userEntries]) => {
+    Object.values(userEntries || {}).forEach((entry) => {
+      const startMinutes = entry.allDay ? 0 : parseTimeMinutes(entry.start);
+      const endMinutes = entry.allDay ? 1440 : parseTimeMinutes(entry.end);
+      if (startMinutes === null || endMinutes === null) return;
+
+      const addInterval = (date) => {
+        const start = startOfDay(date) + (startMinutes * 60 * 1000);
+        const durationMinutes = entry.allDay
+          ? 1440
+          : (endMinutes <= startMinutes ? (endMinutes + 1440 - startMinutes) : (endMinutes - startMinutes));
+        const end = start + (durationMinutes * 60 * 1000);
+        if (!intervalsByUser.has(userId)) intervalsByUser.set(userId, []);
+        intervalsByUser.get(userId).push({ start, end });
+      };
+
+      if (entry.type === 'date' && entry.date) {
+        addInterval(dateFromKey(entry.date));
+        return;
+      }
+
+      const days = Array.isArray(entry.days) ? entry.days : [];
+      for (let offset = -1; offset <= availabilityHorizonDays; offset += 1) {
+        const date = addDays(today, offset);
+        if (days.includes(getWeekdayIndex(date))) addInterval(date);
+      }
+    });
+  });
+  return intervalsByUser;
+}
+
+function getUsersForSlot(intervalsByUser, start, end) {
+  return [...intervalsByUser.entries()]
+    .filter(([, intervals]) => intervals.some((interval) => interval.start <= start && interval.end >= end))
+    .map(([userId]) => userId)
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function calculateAvailabilitySlots() {
+  const runtime = getAvailabilityRuntime();
+  const intervalsByUser = buildAvailabilityIntervals();
+  const start = roundUpToStep(Date.now(), availabilityStepMinutes);
+  const horizonEnd = startOfDay(addDays(new Date(), availabilityHorizonDays + 1));
+  const slots = [];
+  for (let slotStart = start; slotStart + (runtime * 60 * 1000) <= horizonEnd; slotStart += availabilityStepMinutes * 60 * 1000) {
+    const slotEnd = slotStart + (runtime * 60 * 1000);
+    const userIds = getUsersForSlot(intervalsByUser, slotStart, slotEnd);
+    if (userIds.length) slots.push({ start: slotStart, end: slotEnd, userIds });
+  }
+  return slots.sort((a, b) => b.userIds.length - a.userIds.length || a.start - b.start);
+}
+
+function renderAvailabilityRecommendations() {
+  const slots = calculateAvailabilitySlots().slice(0, 5);
+  elements.availabilityRuntime.textContent = getDrawRuntimeLabel();
+  if (!slots.length) {
+    elements.availabilityRecommendations.replaceChildren(createEmptyState('Aucun créneau commun trouvé pour le moment'));
+    return;
+  }
+
+  elements.availabilityRecommendations.replaceChildren(...slots.map((slot, index) => {
+    const item = document.createElement('article');
+    item.className = `availability-recommendation${index === 0 ? ' availability-recommendation--best' : ''}`;
+    const count = document.createElement('strong');
+    count.textContent = `${slot.userIds.length} personne${slot.userIds.length > 1 ? 's' : ''}`;
+    const time = document.createElement('span');
+    time.textContent = formatSlotRange(slot.start, slot.end);
+    const names = document.createElement('small');
+    names.textContent = slot.userIds.join(', ');
+    item.append(count, time, names);
+    return item;
+  }));
+}
+
+function renderAvailabilityCalendar() {
+  const today = new Date(startOfDay(new Date()));
+  const intervalsByUser = buildAvailabilityIntervals();
+  const cards = Array.from({ length: availabilityHorizonDays }, (_, offset) => {
+    const date = addDays(today, offset);
+    const dayStart = startOfDay(date);
+    const card = document.createElement('article');
+    card.className = 'availability-day-card';
+    const head = document.createElement('div');
+    head.className = 'availability-day-card__head';
+    const title = document.createElement('strong');
+    title.textContent = new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: '2-digit' }).format(date);
+    const maxCount = document.createElement('small');
+    const segments = Array.from({ length: 12 }, (_, index) => {
+      const midpoint = dayStart + (((index * 120) + 60) * 60 * 1000);
+      return [...intervalsByUser.values()]
+        .filter((intervals) => intervals.some((interval) => interval.start <= midpoint && interval.end >= midpoint)).length;
+    });
+    const peak = Math.max(0, ...segments);
+    maxCount.textContent = peak ? `${peak} max` : 'vide';
+    head.append(title, maxCount);
+
+    const timeline = document.createElement('div');
+    timeline.className = 'availability-timeline';
+    const maxUsers = Math.max(1, Object.keys(users).length, intervalsByUser.size);
+    timeline.replaceChildren(...segments.map((count) => {
+      const segment = document.createElement('span');
+      segment.style.setProperty('--level', String(count / maxUsers));
+      segment.title = `${count} disponible${count > 1 ? 's' : ''}`;
+      return segment;
+    }));
+    card.append(head, timeline);
+    return card;
+  });
+  elements.availabilityCalendar.replaceChildren(...cards);
+}
+
+function renderAvailability() {
+  if (!currentUser) return;
+  setAvailabilityMode(availabilityMode);
+  setAvailabilityAllDay(availabilityAllDay);
+  renderAvailabilityList();
+  renderAvailabilityRecommendations();
+  renderAvailabilityCalendar();
+}
+
+async function handleAvailabilitySubmit(event) {
+  event.preventDefault();
+  if (!currentUser) return;
+  const entry = {
+    type: availabilityMode === 'date' ? 'date' : 'weekly',
+    allDay: availabilityAllDay,
+    start: availabilityAllDay ? '00:00' : elements.availabilityStart.value,
+    end: availabilityAllDay ? '00:00' : elements.availabilityEnd.value,
+    createdAt: Date.now(),
+  };
+
+  if (entry.type === 'date') {
+    if (!elements.availabilityDate.value) {
+      elements.message.textContent = 'Choisis une date';
+      return;
+    }
+    entry.date = elements.availabilityDate.value;
+  } else {
+    if (!availabilitySelectedDays.size) {
+      elements.message.textContent = 'Choisis au moins un jour';
+      return;
+    }
+    entry.days = [...availabilitySelectedDays].sort((a, b) => a - b);
+  }
+
+  if (!entry.allDay && (!entry.start || !entry.end || parseTimeMinutes(entry.start) === parseTimeMinutes(entry.end))) {
+    elements.message.textContent = 'Choisis une plage horaire valide';
+    return;
+  }
+
+  await push(ref(db, `availability/${currentUser.id}`), entry);
+  elements.message.textContent = 'Disponibilité ajoutée';
+}
+
+async function refreshDrawRuntime() {
+  const nextKey = draw?.tmdbId ? `tmdb-${draw.tmdbId}` : '';
+  if (!nextKey) {
+    drawRuntimeKey = '';
+    drawRuntimeMinutes = null;
+    renderAvailability();
+    return;
+  }
+  if (drawRuntimeKey === nextKey) return;
+  drawRuntimeKey = nextKey;
+  drawRuntimeMinutes = null;
+  renderAvailability();
+  try {
+    const details = await fetchMovieDetails(draw);
+    if (drawRuntimeKey !== nextKey) return;
+    drawRuntimeMinutes = Number(details?.runtime) || null;
+    renderAvailability();
+  } catch {
+    if (drawRuntimeKey === nextKey) renderAvailability();
+  }
+}
+
 function renderProfile() {
   const role = currentUser?.isAdmin ? 'Admin' : 'Utilisateur';
   elements.profileDetails.replaceChildren(createMetaItem(currentUser.id, role));
@@ -1216,6 +1590,10 @@ elements.logoutButton.addEventListener('click', () => {
   render();
 });
 elements.searchForm.addEventListener('submit', searchMovies);
+elements.availabilityForm.addEventListener('submit', handleAvailabilitySubmit);
+elements.availabilityRecurringMode.addEventListener('click', () => setAvailabilityMode('weekly'));
+elements.availabilityDateMode.addEventListener('click', () => setAvailabilityMode('date'));
+elements.availabilityAllDay.addEventListener('click', () => setAvailabilityAllDay(!availabilityAllDay));
 elements.cancelMovieSelection.addEventListener('click', () => {
   clearPendingMovie();
   elements.message.textContent = '';
@@ -1265,6 +1643,7 @@ onValue(ref(db, 'users'), (snapshot) => {
 onValue(ref(db, 'draw/current'), (snapshot) => {
   draw = snapshot.val();
   if (currentUser) renderDraw();
+  refreshDrawRuntime();
 });
 onValue(ref(db, 'draw/lastDrawn'), (snapshot) => {
   lastDrawn = snapshot.val();
@@ -1276,6 +1655,14 @@ onValue(ref(db, 'draw/history'), (snapshot) => {
   if (currentUser) renderSeenMovies();
 });
 
+onValue(ref(db, 'availability'), (snapshot) => {
+  availability = snapshot.val() || {};
+  if (currentUser) renderAvailability();
+});
+
+elements.availabilityDate.value = toDateKey(new Date());
+setAvailabilityMode('weekly');
+setAvailabilityAllDay(false);
 setKeepSelectionOnDraw(false);
 syncRouteFromHash();
 render();

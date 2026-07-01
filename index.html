@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
         <title>Grand Paff</title>
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0"/>
-        <link rel="stylesheet" href="./styles.css?v=grandpaff-ui-7"/>
+        <link rel="stylesheet" href="./styles.css?v=grandpaff-ui-8"/>
         <link rel="icon" href="image/Logo.png" type="image/png">
     </head>
     <body>
@@ -39,6 +39,9 @@
                             </button>
                             <button class="tab" type="button" data-route="seen">
                                 <span class="material-symbols-rounded" aria-hidden="true">movie</span>Films vus
+                            </button>
+                            <button class="tab" type="button" data-route="availability">
+                                <span class="material-symbols-rounded" aria-hidden="true">calendar_month</span>Dispos
                             </button>
                             <button class="tab" type="button" data-route="profile">
                                 <span class="material-symbols-rounded" aria-hidden="true">person</span>Profil
@@ -137,6 +140,62 @@
                             <div class="seen-grid" id="seenList"></div>
                         </section>
                     </section>
+                    <section class="view hidden" id="availabilityView" data-view="availability">
+                        <div class="availability-layout">
+                            <section class="surface availability-editor">
+                                <div class="section-label">Disponibilités</div>
+                                <form class="availability-form" id="availabilityForm">
+                                    <div class="availability-mode" role="group" aria-label="Type de disponibilité">
+                                        <button class="switch-button is-on" id="availabilityRecurringMode" type="button" aria-pressed="true">
+                                            <span class="material-symbols-rounded" aria-hidden="true">event_repeat</span>
+                                            <span>Récurrent</span>
+                                            <span class="switch-button__track" aria-hidden="true"><span></span></span>
+                                        </button>
+                                        <button class="switch-button" id="availabilityDateMode" type="button" aria-pressed="false">
+                                            <span class="material-symbols-rounded" aria-hidden="true">event</span>
+                                            <span>Jour précis</span>
+                                            <span class="switch-button__track" aria-hidden="true"><span></span></span>
+                                        </button>
+                                    </div>
+                                    <label class="field-label" id="availabilityDateField">
+                                        <span>Date</span>
+                                        <input id="availabilityDate" type="date" aria-label="Date précise"/>
+                                    </label>
+                                    <div class="day-picker" id="availabilityDayPicker" aria-label="Jours récurrents"></div>
+                                    <div class="time-grid">
+                                        <label class="field-label">
+                                            <span>Début</span>
+                                            <input id="availabilityStart" type="time" value="20:00" aria-label="Heure de début"/>
+                                        </label>
+                                        <label class="field-label">
+                                            <span>Fin</span>
+                                            <input id="availabilityEnd" type="time" value="23:30" aria-label="Heure de fin"/>
+                                        </label>
+                                    </div>
+                                    <button class="switch-button" id="availabilityAllDay" type="button" aria-pressed="false">
+                                        <span class="material-symbols-rounded" aria-hidden="true">wb_sunny</span>
+                                        <span>Toute la journée</span>
+                                        <span class="switch-button__track" aria-hidden="true"><span></span></span>
+                                    </button>
+                                    <button type="submit">
+                                        <span class="material-symbols-rounded" aria-hidden="true">add</span>Ajouter la dispo
+                                    </button>
+                                </form>
+                                <div class="availability-list" id="availabilityList"></div>
+                            </section>
+                            <section class="surface availability-calendar-panel">
+                                <div class="panel-head">
+                                    <div>
+                                        <div class="section-label">Planning</div>
+                                        <h2 id="availabilityBestTitle">Meilleurs créneaux</h2>
+                                    </div>
+                                    <div class="runtime-pill" id="availabilityRuntime">Durée film inconnue</div>
+                                </div>
+                                <div class="availability-recommendations" id="availabilityRecommendations"></div>
+                                <div class="availability-calendar" id="availabilityCalendar"></div>
+                            </section>
+                        </div>
+                    </section>
                     <section class="view hidden" id="profileView" data-view="profile">
                         <section class="surface compact-panel">
                             <div class="panel-head">
@@ -201,6 +260,6 @@
                 </section>
             </div>
         </main>
-        <script type="module" src="./src/main.js?v=grandpaff-ui-7"></script>
+        <script type="module" src="./src/main.js?v=grandpaff-ui-8"></script>
     </body>
 </html>
