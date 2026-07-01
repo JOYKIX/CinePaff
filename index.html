@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
         <title>Grand Paff</title>
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0"/>
-        <link rel="stylesheet" href="./styles.css?v=grandpaff-ui-9"/>
+        <link rel="stylesheet" href="./styles.css?v=grandpaff-ui-10"/>
         <link rel="icon" href="image/Logo.png" type="image/png">
     </head>
     <body>
@@ -55,6 +55,7 @@
                         </section>
                     </div>
                 </header>
+                <p class="app-status" id="message" role="status" aria-live="polite"></p>
                 <div class="workspace">
                     <section class="view" id="homeView" data-view="home">
                         <div class="home-layout">
@@ -66,7 +67,8 @@
                                         <span class="material-symbols-rounded" aria-hidden="true">search</span>Rechercher
                                     </button>
                                 </form>
-                                <p class="message" id="message"></p>
+                                <p class="proposal-status" id="proposalStatus"></p>
+                                <div class="proposal-preview" id="proposalPreview"></div>
                                 <div class="results" id="results"></div>
                                 <section class="pending-movie hidden" id="pendingMoviePanel" aria-label="Film sélectionné">
                                     <div class="pending-movie__head">
@@ -260,6 +262,6 @@
                 </section>
             </div>
         </main>
-        <script type="module" src="./src/main.js?v=grandpaff-ui-9"></script>
+        <script type="module" src="./src/main.js?v=grandpaff-ui-10"></script>
     </body>
 </html>

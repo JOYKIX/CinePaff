@@ -40,6 +40,8 @@ const elements = {
   searchForm: document.querySelector('#searchForm'),
   movieQuery: document.querySelector('#movieQuery'),
   message: document.querySelector('#message'),
+  proposalStatus: document.querySelector('#proposalStatus'),
+  proposalPreview: document.querySelector('#proposalPreview'),
   results: document.querySelector('#results'),
   pendingMoviePanel: document.querySelector('#pendingMoviePanel'),
   pendingMoviePoster: document.querySelector('#pendingMoviePoster'),
@@ -133,6 +135,14 @@ const movieDetailsCache = new Map();
 const availabilityStepMinutes = 30;
 const availabilityHorizonDays = 14;
 const defaultMovieRuntimeMinutes = 120;
+const routeConfig = {
+  home: { label: 'Accueil' },
+  draws: { label: 'Tirages', adminOnly: true },
+  seen: { label: 'Films vus' },
+  availability: { label: 'Dispos' },
+  profile: { label: 'Profil' },
+};
+const routeNames = Object.keys(routeConfig);
 const dayOptions = [
   { id: 0, short: 'Lun', long: 'Lundi' },
   { id: 1, short: 'Mar', long: 'Mardi' },
@@ -152,6 +162,102 @@ const triggerWarningOptions = [
   { id: 'horror', label: 'Horreur / angoisse' },
   { id: 'discrimination', label: 'Discrimination' },
 ];
+
+function createIcon(name) {
+  const icon = document.createElement('span');
+  icon.className = 'material-symbols-rounded';
+  icon.ariaHidden = 'true';
+  icon.textContent = name;
+  return icon;
+}
+
+function setMessage(text = '') {
+  elements.message.textContent = text;
+  elements.message.classList.toggle('is-visible', Boolean(text));
+}
+
+function setProposalStatus(text = '') {
+  elements.proposalStatus.textContent = text;
+}
+
+function renderProposalPreview(movie) {
+  elements.proposalPreview.replaceChildren();
+  elements.proposalPreview.classList.toggle('hidden', !movie);
+  if (!movie) return;
+
+  const media = document.createElement('div');
+  media.className = 'proposal-preview__poster';
+  media.append(createPosterMedia(movie, 'w185'));
+
+  const meta = document.createElement('span');
+  meta.className = 'meta';
+  const title = document.createElement('strong');
+  title.textContent = movie.title;
+  const detail = document.createElement('small');
+  detail.textContent = [movie.proposedBy, formatYear(movie.releaseDate)].filter(Boolean).join(' · ');
+  meta.append(title, detail);
+
+  const deleteButton = document.createElement('button');
+  deleteButton.className = 'proposal-preview__delete';
+  deleteButton.type = 'button';
+  deleteButton.setAttribute('aria-label', `Supprimer ${movie.title}`);
+  deleteButton.append(createIcon('delete'));
+  deleteButton.addEventListener('click', () => deleteMovie(movie.key));
+
+  elements.proposalPreview.append(media, meta, deleteButton);
+}
+
+function syncModalLock() {
+  const hasOpenModal = [elements.ratingModal, elements.warningModal, elements.deleteHistoryModal]
+    .some((modal) => modal && !modal.classList.contains('hidden'));
+  document.body.classList.toggle('modal-lock', hasOpenModal);
+}
+
+function showModal(modal) {
+  modal.classList.remove('hidden');
+  syncModalLock();
+}
+
+function hideModal(modal) {
+  modal.classList.add('hidden');
+  syncModalLock();
+}
+
+function createPosterMedia(movie, size = 'w342') {
+  const imageUrl = posterUrl(movie?.posterPath, size);
+  if (imageUrl) {
+    const image = document.createElement('img');
+    image.src = imageUrl;
+    image.alt = '';
+    image.loading = 'lazy';
+    return image;
+  }
+
+  const fallback = document.createElement('div');
+  fallback.className = 'poster-card__fallback';
+  fallback.textContent = movie?.title || 'Grand Paff';
+  return fallback;
+}
+
+function createCardButton(movie, label, onOpen) {
+  const button = document.createElement('button');
+  button.className = 'poster-card__button';
+  button.type = 'button';
+  button.setAttribute('aria-label', label);
+  button.append(createPosterMedia(movie), createMovieCardMeta(movie));
+  button.addEventListener('click', onOpen);
+  return button;
+}
+
+function createMovieCardMeta(movie) {
+  const meta = document.createElement('div');
+  meta.className = 'poster-card__meta';
+  const title = createMovieTitleRow(movie, { withWarningButton: false });
+  const proposedBy = document.createElement('small');
+  proposedBy.textContent = movie.proposedBy || '';
+  meta.append(title, proposedBy);
+  return meta;
+}
 
 function normalizeId(id) {
   return id.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
@@ -246,6 +352,7 @@ function setMobileMenu(open) {
   elements.appHeader.classList.toggle('menu-open', open);
   document.body.classList.toggle('menu-lock', open);
   elements.menuToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  elements.menuToggle.querySelector('.menu-toggle__label').textContent = open ? 'Fermer' : 'Menu';
   if (open) {
     window.setTimeout(() => {
       elements.navRow.querySelector('.tab:not(.hidden), #logoutButton')?.focus();
@@ -277,20 +384,26 @@ async function passwordMatches(password, account) {
 
 
 function setRoute(nextRoute) {
-  route = nextRoute;
-  if (route === 'draws' && !currentUser?.isAdmin) route = 'home';
+  const requestedRoute = routeConfig[nextRoute] ? nextRoute : 'home';
+  route = requestedRoute;
+  if (routeConfig[route]?.adminOnly && !currentUser?.isAdmin) route = 'home';
+  if (window.location.hash !== `#${route}`) {
+    window.history.replaceState(null, '', `#${route}`);
+  }
   elements.views.forEach((view) => view.classList.toggle('hidden', view.dataset.view !== route));
   elements.tabs.forEach((tab) => {
     const isActive = tab.dataset.route === route;
     tab.classList.toggle('active', isActive);
     tab.setAttribute('aria-current', isActive ? 'page' : 'false');
   });
+  document.body.dataset.route = route;
+  document.title = `Grand Paff - ${routeConfig[route].label}`;
   setMobileMenu(false);
 }
 
 function syncRouteFromHash() {
   const nextRoute = window.location.hash.replace('#', '') || 'home';
-  setRoute(['home', 'draws', 'seen', 'availability', 'profile'].includes(nextRoute) ? nextRoute : 'home');
+  setRoute(routeNames.includes(nextRoute) ? nextRoute : 'home');
 }
 
 function formatDate(timestamp) {
@@ -365,7 +478,7 @@ function formatRuntime(minutes) {
   const hours = Math.floor(value / 60);
   const remainingMinutes = value % 60;
   if (!hours) return `${remainingMinutes} min`;
-  return remainingMinutes ? `${hours} h ${remainingMinutes}` : `${hours} h`;
+  return remainingMinutes ? `${hours} h ${remainingMinutes} min` : `${hours} h`;
 }
 
 function padNumber(value) {
@@ -464,7 +577,7 @@ function createWarningButton(movie) {
   button.type = 'button';
   button.title = 'Voir les trigger warnings';
   button.setAttribute('aria-label', `Voir les trigger warnings de ${movie.title}`);
-  button.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">warning</span>';
+  button.append(createIcon('warning'));
   button.addEventListener('click', (event) => {
     event.stopPropagation();
     openWarningModal(movie);
@@ -472,13 +585,14 @@ function createWarningButton(movie) {
   return button;
 }
 
-function createMovieTitleRow(movie) {
+function createMovieTitleRow(movie, options = {}) {
+  const withWarningButton = options.withWarningButton !== false;
   const row = document.createElement('span');
   row.className = 'movie-title-row';
   const title = document.createElement('strong');
   title.textContent = movie.title;
   row.append(title);
-  const warningButton = createWarningButton(movie);
+  const warningButton = withWarningButton ? createWarningButton(movie) : null;
   if (warningButton) row.append(warningButton);
   return row;
 }
@@ -574,7 +688,8 @@ function renderMovies() {
   elements.drawButton.disabled = list.length === 0;
   elements.searchForm.classList.toggle('hidden', !canPropose);
   if (!canPropose && pendingMovie) clearPendingMovie();
-  elements.message.textContent = wasLastDrawnUser() ? 'Dernier tiré au sort' : ownMovie ? 'Film proposé' : '';
+  setProposalStatus(wasLastDrawnUser() ? 'Dernier tiré au sort' : ownMovie ? 'Film proposé' : '');
+  renderProposalPreview(ownMovie);
   if (!list.length) {
     elements.movieList.replaceChildren(createEmptyState('Aucun film en sélection'));
     return;
@@ -583,44 +698,15 @@ function renderMovies() {
   elements.movieList.replaceChildren(...list.map((movie) => {
     const item = document.createElement('article');
     item.className = 'poster-card';
-    item.tabIndex = 0;
-    item.setAttribute('role', 'button');
-    item.setAttribute('aria-label', `Voir la fiche de ${movie.title}`);
-    item.addEventListener('click', () => openRatingModal(movie, { allowRating: false }));
-    item.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        openRatingModal(movie, { allowRating: false });
-      }
-    });
-    const imageUrl = posterUrl(movie.posterPath);
-    if (imageUrl) {
-      const image = document.createElement('img');
-      image.src = imageUrl;
-      image.alt = '';
-      item.append(image);
-    } else {
-      const fallback = document.createElement('div');
-      fallback.className = 'poster-card__fallback';
-      fallback.textContent = movie.title;
-      item.append(fallback);
-    }
-    const meta = document.createElement('div');
-    meta.className = 'poster-card__meta';
-    const title = createMovieTitleRow(movie);
-    const proposedBy = document.createElement('small');
-    proposedBy.textContent = movie.proposedBy;
-    meta.append(title, proposedBy);
-    item.append(meta);
+    item.append(createCardButton(movie, `Voir la fiche de ${movie.title}`, () => openRatingModal(movie, { allowRating: false })));
+    const warningButton = createWarningButton(movie);
+    if (warningButton) item.append(warningButton);
     if (movie.proposedBy === currentUser?.id) {
       const deleteButton = document.createElement('button');
       deleteButton.className = 'poster-card__delete';
       deleteButton.type = 'button';
-      deleteButton.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">delete</span>Supprimer';
-      deleteButton.addEventListener('click', (event) => {
-        event.stopPropagation();
-        deleteMovie(movie.key);
-      });
+      deleteButton.append(createIcon('delete'), 'Supprimer');
+      deleteButton.addEventListener('click', () => deleteMovie(movie.key));
       item.append(deleteButton);
     }
     return item;
@@ -668,7 +754,11 @@ function renderUsers() {
     switchButton.setAttribute('aria-pressed', account.isAdmin ? 'true' : 'false');
     switchButton.setAttribute('aria-label', `${account.isAdmin ? 'Retirer' : 'Ajouter'} ${account.id} admin`);
     switchButton.classList.toggle('is-on', Boolean(account.isAdmin));
-    switchButton.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">admin_panel_settings</span><span>Admin</span><span class="switch-button__track" aria-hidden="true"><span></span></span>';
+    const switchTrack = document.createElement('span');
+    switchTrack.className = 'switch-button__track';
+    switchTrack.ariaHidden = 'true';
+    switchTrack.append(document.createElement('span'));
+    switchButton.append(createIcon('admin_panel_settings'), 'Admin', switchTrack);
     switchButton.addEventListener('click', async () => {
       const nextValue = !account.isAdmin;
       switchButton.disabled = true;
@@ -676,7 +766,7 @@ function renderUsers() {
         await update(ref(db, `users/${account.id}`), { isAdmin: nextValue });
         if (account.id === currentUser.id) currentUser = { ...currentUser, isAdmin: nextValue };
       } catch {
-        elements.message.textContent = 'Impossible de modifier cet utilisateur';
+        setMessage('Impossible de modifier cet utilisateur');
       } finally {
         switchButton.disabled = false;
       }
@@ -789,32 +879,16 @@ function createRatingButton(movie, value) {
 function createSeenMovieCard(movie) {
   const item = document.createElement('article');
   item.className = 'poster-card seen-card';
-  item.tabIndex = 0;
-  item.setAttribute('role', 'button');
-  item.setAttribute('aria-label', `Noter ${movie.title}`);
-  item.addEventListener('click', () => openRatingModal(movie));
-  item.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      openRatingModal(movie);
-    }
-  });
-  const imageUrl = posterUrl(movie.posterPath);
-  if (imageUrl) {
-    const image = document.createElement('img');
-    image.src = imageUrl;
-    image.alt = '';
-    item.append(image);
-  } else {
-    const fallback = document.createElement('div');
-    fallback.className = 'poster-card__fallback';
-    fallback.textContent = movie.title;
-    item.append(fallback);
-  }
+  const cardButton = document.createElement('button');
+  cardButton.className = 'poster-card__button';
+  cardButton.type = 'button';
+  cardButton.setAttribute('aria-label', `Noter ${movie.title}`);
+  cardButton.append(createPosterMedia(movie));
+  cardButton.addEventListener('click', () => openRatingModal(movie));
 
   const meta = document.createElement('div');
   meta.className = 'poster-card__meta';
-  const title = createMovieTitleRow(movie);
+  const title = createMovieTitleRow(movie, { withWarningButton: false });
   const proposedBy = document.createElement('small');
   proposedBy.textContent = movie.proposedBy;
   const testBadge = document.createElement('span');
@@ -842,16 +916,16 @@ function createSeenMovieCard(movie) {
   meta.append(title, proposedBy);
   if (movie.isTestDraw) meta.append(testBadge);
   meta.append(ratingRow);
-  item.append(meta);
+  cardButton.append(meta);
+  item.append(cardButton);
+  const warningButton = createWarningButton(movie);
+  if (warningButton) item.append(warningButton);
   if (currentUser?.isAdmin) {
     const deleteButton = document.createElement('button');
     deleteButton.className = 'poster-card__delete seen-card__delete';
     deleteButton.type = 'button';
-    deleteButton.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">delete</span>Supprimer';
-    deleteButton.addEventListener('click', (event) => {
-      event.stopPropagation();
-      openDeleteHistoryModal(movie);
-    });
+    deleteButton.append(createIcon('delete'), 'Supprimer');
+    deleteButton.addEventListener('click', () => openDeleteHistoryModal(movie));
     item.append(deleteButton);
   }
   return item;
@@ -907,14 +981,14 @@ function openRatingModal(movie, options = {}) {
   elements.ratingModalStars.replaceChildren(...(allowRating ? [1, 2, 3, 4, 5].map((value) => createRatingButton(movie, value)) : []));
   elements.ratingModalStars.classList.toggle('hidden', !allowRating);
   elements.ratingModalStars.classList.toggle('rating--confirmed', allowRating && movie.key === ratedMovieKey && getUserRating(movie) > 0);
-  elements.ratingModal.classList.remove('hidden');
+  showModal(elements.ratingModal);
 }
 
 function closeRatingModal() {
   activeSeenMovie = null;
   activeMovieDetailsKey = '';
   movieDetailsRequestId += 1;
-  elements.ratingModal.classList.add('hidden');
+  hideModal(elements.ratingModal);
 }
 
 function openWarningModal(movie) {
@@ -932,11 +1006,11 @@ function openWarningModal(movie) {
     item.append(icon, warning.label);
     return item;
   }));
-  elements.warningModal.classList.remove('hidden');
+  showModal(elements.warningModal);
 }
 
 function closeWarningModal() {
-  elements.warningModal.classList.add('hidden');
+  hideModal(elements.warningModal);
   elements.warningModalList.replaceChildren();
 }
 
@@ -944,12 +1018,12 @@ function openDeleteHistoryModal(movie) {
   if (!currentUser?.isAdmin || !movie?.key) return;
   pendingHistoryDeleteMovie = movie;
   elements.deleteHistoryText.textContent = `Supprimer "${movie.title}" de l'historique ? Cette action retirera aussi ses notes.`;
-  elements.deleteHistoryModal.classList.remove('hidden');
+  showModal(elements.deleteHistoryModal);
 }
 
 function closeDeleteHistoryModal() {
   pendingHistoryDeleteMovie = null;
-  elements.deleteHistoryModal.classList.add('hidden');
+  hideModal(elements.deleteHistoryModal);
   elements.deleteHistoryConfirm.disabled = false;
 }
 
@@ -967,7 +1041,7 @@ async function rateSeenMovie(key, rating) {
   try {
     await set(ref(db, `draw/history/${key}/ratings/${currentUser.id}`), normalizedRating);
   } catch {
-    elements.message.textContent = 'Impossible d’enregistrer la note';
+    setMessage('Impossible d’enregistrer la note');
   }
 }
 
@@ -979,7 +1053,7 @@ async function deleteSeenMovie(movie) {
     if (activeSeenMovie?.key === movie.key) closeRatingModal();
     closeDeleteHistoryModal();
   } catch {
-    elements.message.textContent = 'Impossible de supprimer ce film de l’historique';
+    setMessage('Impossible de supprimer ce film de l’historique');
   }
 }
 
@@ -1073,7 +1147,7 @@ function renderAvailabilityList() {
     const deleteButton = document.createElement('button');
     deleteButton.className = 'poster-card__delete availability-delete';
     deleteButton.type = 'button';
-    deleteButton.innerHTML = '<span class="material-symbols-rounded" aria-hidden="true">delete</span>';
+    deleteButton.append(createIcon('delete'));
     deleteButton.setAttribute('aria-label', 'Supprimer cette disponibilité');
     deleteButton.addEventListener('click', async () => {
       await remove(ref(db, `availability/${currentUser.id}/${entry.key}`));
@@ -1229,25 +1303,25 @@ async function handleAvailabilitySubmit(event) {
 
   if (entry.type === 'date') {
     if (!elements.availabilityDate.value) {
-      elements.message.textContent = 'Choisis une date';
+      setMessage('Choisis une date');
       return;
     }
     entry.date = elements.availabilityDate.value;
   } else {
     if (!availabilitySelectedDays.size) {
-      elements.message.textContent = 'Choisis au moins un jour';
+      setMessage('Choisis au moins un jour');
       return;
     }
     entry.days = [...availabilitySelectedDays].sort((a, b) => a - b);
   }
 
   if (!entry.allDay && (!entry.start || !entry.end || parseTimeMinutes(entry.start) === parseTimeMinutes(entry.end))) {
-    elements.message.textContent = 'Choisis une plage horaire valide';
+    setMessage('Choisis une plage horaire valide');
     return;
   }
 
   await push(ref(db, `availability/${currentUser.id}`), entry);
-  elements.message.textContent = 'Disponibilité ajoutée';
+  setMessage('Disponibilité ajoutée');
 }
 
 async function refreshDrawRuntime() {
@@ -1323,7 +1397,7 @@ async function handleAuth(event) {
 
 async function searchMovies(event) {
   event.preventDefault();
-  elements.message.textContent = '';
+  setMessage('');
   elements.results.replaceChildren();
   const query = elements.movieQuery.value.trim();
   if (!query) return;
@@ -1336,9 +1410,9 @@ async function searchMovies(event) {
     const data = await response.json();
     const results = (data.results || []).slice(0, 8);
     elements.results.replaceChildren(...results.map(createMovieButton));
-    if (!results.length) elements.message.textContent = 'Aucun film trouvé';
+    if (!results.length) setMessage('Aucun film trouvé');
   } catch {
-    elements.message.textContent = 'Recherche impossible pour le moment';
+    setMessage('Recherche impossible pour le moment');
   } finally {
     elements.searchForm.querySelector('button').disabled = false;
   }
@@ -1348,6 +1422,7 @@ function createMovieButton(movie) {
   const button = document.createElement('button');
   button.className = 'movie';
   button.type = 'button';
+  button.setAttribute('aria-label', `Sélectionner ${movie.title}`);
   if (movie.poster_path) {
     const image = document.createElement('img');
     image.src = `https://image.tmdb.org/t/p/w185${movie.poster_path}`;
@@ -1360,9 +1435,14 @@ function createMovieButton(movie) {
     fallback.ariaHidden = 'true';
     button.append(fallback);
   }
-  const title = document.createElement('span');
+  const content = document.createElement('span');
+  content.className = 'movie__content';
+  const title = document.createElement('strong');
   title.textContent = movie.title;
-  button.append(title);
+  const meta = document.createElement('small');
+  meta.textContent = [formatYear(movie.release_date), formatTmdbScore(movie.vote_average)].filter(Boolean).join(' · ') || 'Infos indisponibles';
+  content.append(title, meta);
+  button.append(content);
   button.addEventListener('click', () => selectPendingMovie(movie));
   return button;
 }
@@ -1387,7 +1467,13 @@ function renderWarningSwitches() {
     button.type = 'button';
     button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
     button.classList.toggle('is-on', enabled);
-    button.innerHTML = `<span>${warning.label}</span><span class="switch-button__track" aria-hidden="true"><span></span></span>`;
+    const label = document.createElement('span');
+    label.textContent = warning.label;
+    const track = document.createElement('span');
+    track.className = 'switch-button__track';
+    track.ariaHidden = 'true';
+    track.append(document.createElement('span'));
+    button.append(label, track);
     button.addEventListener('click', () => {
       if (pendingWarnings.has(warning.id)) pendingWarnings.delete(warning.id);
       else pendingWarnings.add(warning.id);
@@ -1427,12 +1513,12 @@ function renderPendingMovie() {
 
 function selectPendingMovie(movie) {
   if (!canProposeMovie()) {
-    elements.message.textContent = wasLastDrawnUser() ? 'Dernier tiré au sort' : 'Film déjà proposé';
+    setMessage(wasLastDrawnUser() ? 'Dernier tiré au sort' : 'Film déjà proposé');
     return;
   }
   pendingMovie = movieFromSearchResult(movie);
   pendingWarnings = new Set();
-  elements.message.textContent = 'Choisis les warnings puis valide le film';
+  setMessage('Choisis les warnings puis valide le film');
   renderPendingMovie();
 }
 
@@ -1444,7 +1530,7 @@ function clearPendingMovie() {
 
 async function proposeMovie() {
   if (!canProposeMovie()) {
-    elements.message.textContent = wasLastDrawnUser() ? 'Dernier tiré au sort' : 'Film déjà proposé';
+    setMessage(wasLastDrawnUser() ? 'Dernier tiré au sort' : 'Film déjà proposé');
     return;
   }
   if (!pendingMovie) return;
@@ -1469,9 +1555,9 @@ async function proposeMovie() {
     elements.results.replaceChildren();
     elements.movieQuery.value = '';
     clearPendingMovie();
-    elements.message.textContent = 'Film proposé';
+    setMessage('Film proposé');
   } catch {
-    elements.message.textContent = 'Impossible d’ajouter le film';
+    setMessage('Impossible d’ajouter le film');
   }
 }
 
@@ -1480,9 +1566,9 @@ async function deleteMovie(key) {
   if (!movie || movie.proposedBy !== currentUser?.id) return;
   try {
     await remove(ref(db, `movies/${key}`));
-    elements.message.textContent = '';
+    setMessage('');
   } catch {
-    elements.message.textContent = 'Impossible de supprimer le film';
+    setMessage('Impossible de supprimer le film');
   }
 }
 
@@ -1549,7 +1635,7 @@ async function drawMovie() {
     }
     completed = true;
   } catch {
-    elements.message.textContent = 'Tirage impossible pour le moment';
+    setMessage('Tirage impossible pour le moment');
   } finally {
     elements.drawButton.disabled = (!keepSelectionOnDraw && completed) || movieArray().length === 0;
   }
@@ -1577,8 +1663,9 @@ elements.navRow.addEventListener('click', (event) => {
 });
 elements.tabs.forEach((tab) => {
   tab.addEventListener('click', () => {
-    window.location.hash = tab.dataset.route;
-    setRoute(tab.dataset.route);
+    const nextRoute = tab.dataset.route;
+    if (window.location.hash === `#${nextRoute}`) setRoute(nextRoute);
+    else window.location.hash = nextRoute;
   });
 });
 window.addEventListener('hashchange', syncRouteFromHash);
@@ -1596,7 +1683,7 @@ elements.availabilityDateMode.addEventListener('click', () => setAvailabilityMod
 elements.availabilityAllDay.addEventListener('click', () => setAvailabilityAllDay(!availabilityAllDay));
 elements.cancelMovieSelection.addEventListener('click', () => {
   clearPendingMovie();
-  elements.message.textContent = '';
+  setMessage('');
 });
 elements.confirmMovieSelection.addEventListener('click', proposeMovie);
 elements.drawButton.addEventListener('click', drawMovie);
