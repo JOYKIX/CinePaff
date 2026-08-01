@@ -372,6 +372,7 @@ function setMobileMenu(open) {
   elements.appHeader.classList.toggle('menu-open', open);
   document.body.classList.toggle('menu-lock', open);
   elements.menuToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  elements.menuToggle.setAttribute('aria-label', open ? 'Fermer le menu' : 'Ouvrir le menu');
   elements.menuToggle.querySelector('.menu-toggle__label').textContent = open ? 'Fermer' : 'Menu';
   if (open) {
     window.setTimeout(() => {
@@ -1723,6 +1724,9 @@ elements.tabs.forEach((tab) => {
   });
 });
 window.addEventListener('hashchange', syncRouteFromHash);
+window.matchMedia('(max-width: 820px), (max-width: 900px) and (max-height: 500px)').addEventListener('change', (event) => {
+  if (!event.matches) setMobileMenu(false);
+});
 
 elements.logoutButton.addEventListener('click', () => {
   setMobileMenu(false);

@@ -18,6 +18,7 @@ await Promise.all([
 await Promise.all([
   copyFile(resolve(root, 'index.html'), resolve(dist, 'client', 'index.html')),
   copyFile(resolve(root, 'styles.css'), resolve(dist, 'client', 'styles.css')),
+  copyFile(resolve(root, 'mobile.css'), resolve(dist, 'client', 'mobile.css')),
   copyFile(resolve(root, 'src', 'main.js'), resolve(dist, 'client', 'src', 'main.js')),
   copyFile(resolve(root, 'image', 'Logo.png'), resolve(dist, 'client', 'image', 'Logo.png')),
   copyFile(resolve(root, 'worker', 'index.js'), resolve(dist, 'server', 'index.js')),
