@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#090807" />
+    <meta name="description" content="Grand Paff — proposez, tirez, regardez." />
+    <title>Grand Paff</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0&display=swap"
+    />
+    <link rel="stylesheet" href="./styles.css?v=grandpaff-refonte-4" />
+    <link rel="icon" href="./image/Logo.png" type="image/png" />
+  </head>
+  <body>
+    <main class="auth-page" id="authPage">
+      <div class="auth-shell">
+        <section class="auth-card" aria-label="Authentification">
+          <h1 class="auth-card__brand">
+            <img src="./image/Logo.png" alt="Grand Paff" />
+          </h1>
+          <form id="authForm" class="auth-form">
+            <label class="field-label">
+              <span>Identifiant</span>
+              <input id="identifier" placeholder="TON ID" autocomplete="username" aria-label="Identifiant" />
+            </label>
+            <label class="field-label">
+              <span>Mot de passe</span>
+              <input id="password" placeholder="••••••••" type="password" autocomplete="current-password" aria-label="Mot de passe" />
+            </label>
+            <p class="error" id="authError" role="alert"></p>
+            <button id="authSubmit" type="submit">Connexion</button>
+          </form>
+          <button class="text-button" id="authToggle" type="button">Créer un compte</button>
+        </section>
+      </div>
+    </main>
+
+    <main class="app-page hidden" id="appPage">
+      <div class="app-shell" aria-label="Application">
+        <aside class="app-header">
+          <div class="sidebar-head">
+            <h1 class="brand brand--app">
+              <img src="./image/Logo.png" alt="" />
+              <span>Grand Paff</span>
+            </h1>
+            <button class="menu-toggle" id="menuToggle" type="button" aria-expanded="false" aria-controls="primaryNav">
+              <span class="menu-toggle__label">Menu</span>
+              <span class="menu-toggle__icon" aria-hidden="true"><span></span><span></span></span>
+            </button>
+          </div>
+
+          <div class="nav-row" id="primaryNav">
+            <nav class="tabs" aria-label="Navigation principale">
+              <button class="tab" type="button" data-route="home">
+                <span class="material-symbols-rounded" aria-hidden="true">movie_filter</span>
+                <span>Sélection</span>
+              </button>
+              <button class="tab admin-only hidden" type="button" data-route="draws">
+                <span class="material-symbols-rounded" aria-hidden="true">casino</span>
+                <span>Tirage</span>
+              </button>
+              <button class="tab" type="button" data-route="availability">
+                <span class="material-symbols-rounded" aria-hidden="true">calendar_month</span>
+                <span>Dispos</span>
+              </button>
+              <button class="tab" type="button" data-route="seen">
+                <span class="material-symbols-rounded" aria-hidden="true">history</span>
+                <span>Historique</span>
+              </button>
+              <button class="tab" type="button" data-route="profile">
+                <span class="material-symbols-rounded" aria-hidden="true">person</span>
+                <span>Profil</span>
+              </button>
+            </nav>
+
+            <section class="session" aria-label="Utilisateur">
+              <span class="session__avatar" aria-hidden="true">GP</span>
+              <span class="session__meta">
+                <small>Connecté</small>
+                <strong id="currentUser"></strong>
+              </span>
+              <button id="logoutButton" class="icon-button" type="button" aria-label="Déconnexion" title="Déconnexion">
+                <span class="material-symbols-rounded" aria-hidden="true">logout</span>
+              </button>
+            </section>
+          </div>
+        </aside>
+
+        <p class="app-status" id="message" role="status" aria-live="polite"></p>
+
+        <div class="workspace">
+          <section class="view" id="homeView" data-view="home">
+            <header class="page-head">
+              <div>
+                <span class="eyebrow">À choisir</span>
+                <h2>La sélection</h2>
+              </div>
+              <span class="count-pill" id="selectionCount">0 film</span>
+            </header>
+
+            <section class="current-pick hidden" id="currentPick" aria-label="Dernier tirage">
+              <div class="current-pick__poster" id="currentPickPoster"></div>
+              <div class="current-pick__meta">
+                <span class="eyebrow">À l’affiche</span>
+                <strong id="currentPickTitle"></strong>
+                <small id="currentPickUser"></small>
+              </div>
+              <a class="current-pick__action" href="#availability">
+                Voir les dispos
+                <span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>
+              </a>
+            </section>
+
+            <div class="home-layout">
+              <aside class="surface search-panel">
+                <div class="panel-title">
+                  <span class="panel-title__index">01</span>
+                  <div>
+                    <span class="eyebrow">Ta proposition</span>
+                    <h3>Ajoute un film</h3>
+                  </div>
+                </div>
+
+                <form class="search" id="searchForm">
+                  <span class="material-symbols-rounded search__icon" aria-hidden="true">search</span>
+                  <input id="movieQuery" placeholder="Titre du film" aria-label="Titre du film" />
+                  <button type="submit" aria-label="Rechercher">
+                    <span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>
+                  </button>
+                </form>
+
+                <p class="proposal-status" id="proposalStatus"></p>
+                <div class="proposal-preview hidden" id="proposalPreview"></div>
+                <div class="results" id="results"></div>
+
+                <section class="pending-movie hidden" id="pendingMoviePanel" aria-label="Film sélectionné">
+                  <div class="pending-movie__head">
+                    <div class="pending-movie__poster" id="pendingMoviePoster"></div>
+                    <div>
+                      <small>Sélectionné</small>
+                      <strong id="pendingMovieTitle"></strong>
+                      <span id="pendingMovieMeta"></span>
+                    </div>
+                  </div>
+
+                  <details class="warning-editor">
+                    <summary>
+                      <span class="material-symbols-rounded" aria-hidden="true">warning</span>
+                      Warnings <small>Optionnel</small>
+                    </summary>
+                    <div class="warning-switches" id="warningList"></div>
+                  </details>
+
+                  <div class="pending-movie__actions">
+                    <button class="ghost-button" id="cancelMovieSelection" type="button">Annuler</button>
+                    <button id="confirmMovieSelection" type="button">
+                      <span class="material-symbols-rounded" aria-hidden="true">add</span>
+                      Ajouter
+                    </button>
+                  </div>
+                </section>
+              </aside>
+
+              <section class="selection-panel">
+                <div class="panel-title panel-title--selection">
+                  <span class="panel-title__index">02</span>
+                  <div>
+                    <span class="eyebrow">En lice</span>
+                    <h3>Les films du groupe</h3>
+                  </div>
+                </div>
+                <div class="poster-grid" id="movieList"></div>
+              </section>
+            </div>
+          </section>
+
+          <section class="view hidden" id="drawsView" data-view="draws">
+            <header class="page-head page-head--actions">
+              <div>
+                <span class="eyebrow">Ce soir</span>
+                <h2>Le grand tirage</h2>
+              </div>
+              <div class="draw-actions">
+                <span class="count-pill" id="drawPoolCount">0 film</span>
+                <button class="switch-button switch-button--compact" id="drawKeepSelectionToggle" type="button" aria-pressed="false">
+                  <span>Test</span>
+                  <span class="switch-button__track" aria-hidden="true"><span></span></span>
+                </button>
+                <button class="draw-button" id="drawButton" type="button">
+                  <span class="material-symbols-rounded" aria-hidden="true">play_arrow</span>
+                  <span id="drawButtonLabel">Lancer</span>
+                </button>
+              </div>
+            </header>
+
+            <section class="draw-panel" id="adminPanel">
+              <div class="draw-stage" id="drawStage" aria-live="polite">
+                <div class="draw-stage__glow" aria-hidden="true"></div>
+                <div class="draw-stage__status" id="drawStatus">PRÊT</div>
+                <div class="draw-marker" aria-hidden="true"><span></span></div>
+                <div class="cover-stack" id="coverStack"></div>
+                <div class="winner hidden" id="winnerCard">
+                  <div class="winner__rays" aria-hidden="true"></div>
+                  <div class="winner-poster" id="winnerPoster"></div>
+                  <div class="winner__meta">
+                    <span class="eyebrow">À l’affiche</span>
+                    <strong id="winnerTitle"></strong>
+                    <small id="winnerUser"></small>
+                    <a href="#availability">Trouver un créneau</a>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </section>
+
+          <section class="view hidden" id="availabilityView" data-view="availability">
+            <header class="page-head">
+              <div>
+                <span class="eyebrow">À plusieurs</span>
+                <h2>Les dispos</h2>
+              </div>
+              <div class="runtime-pill" id="availabilityRuntime">Durée inconnue</div>
+            </header>
+
+            <div class="availability-layout">
+              <section class="surface availability-editor">
+                <div class="panel-title">
+                  <span class="panel-title__index">01</span>
+                  <div>
+                    <span class="eyebrow">Ton agenda</span>
+                    <h3>Ajouter une dispo</h3>
+                  </div>
+                </div>
+
+                <form class="availability-form" id="availabilityForm">
+                  <div class="availability-mode" role="group" aria-label="Type de disponibilité">
+                    <button class="switch-button is-on" id="availabilityRecurringMode" type="button" aria-pressed="true">
+                      <span class="material-symbols-rounded" aria-hidden="true">event_repeat</span>
+                      <span>Récurrent</span>
+                    </button>
+                    <button class="switch-button" id="availabilityDateMode" type="button" aria-pressed="false">
+                      <span class="material-symbols-rounded" aria-hidden="true">event</span>
+                      <span>Date</span>
+                    </button>
+                  </div>
+
+                  <label class="field-label hidden" id="availabilityDateField">
+                    <span>Date</span>
+                    <input id="availabilityDate" type="date" aria-label="Date précise" />
+                  </label>
+
+                  <div class="day-picker" id="availabilityDayPicker" aria-label="Jours récurrents"></div>
+
+                  <div class="time-grid">
+                    <label class="field-label">
+                      <span>Début</span>
+                      <input id="availabilityStart" type="time" value="20:00" aria-label="Heure de début" />
+                    </label>
+                    <label class="field-label">
+                      <span>Fin</span>
+                      <input id="availabilityEnd" type="time" value="23:30" aria-label="Heure de fin" />
+                    </label>
+                  </div>
+
+                  <button class="switch-button switch-button--line" id="availabilityAllDay" type="button" aria-pressed="false">
+                    <span class="material-symbols-rounded" aria-hidden="true">wb_sunny</span>
+                    <span>Toute la journée</span>
+                    <span class="switch-button__track" aria-hidden="true"><span></span></span>
+                  </button>
+
+                  <button type="submit">
+                    <span class="material-symbols-rounded" aria-hidden="true">add</span>
+                    Ajouter
+                  </button>
+                </form>
+
+                <div class="availability-list" id="availabilityList"></div>
+              </section>
+
+              <section class="availability-calendar-panel">
+                <div class="panel-title panel-title--selection">
+                  <span class="panel-title__index">02</span>
+                  <div>
+                    <span class="eyebrow">Planning</span>
+                    <h3 id="availabilityBestTitle">Meilleurs créneaux</h3>
+                  </div>
+                </div>
+                <div class="availability-recommendations" id="availabilityRecommendations"></div>
+                <div class="calendar-head" aria-hidden="true"><span>14 prochains jours</span><span>Disponibilité du groupe</span></div>
+                <div class="availability-calendar" id="availabilityCalendar"></div>
+              </section>
+            </div>
+          </section>
+
+          <section class="view hidden" id="seenView" data-view="seen">
+            <header class="page-head">
+              <div>
+                <span class="eyebrow">Déjà vus</span>
+                <h2>L’historique</h2>
+              </div>
+              <span class="count-pill" id="seenCount">0 film</span>
+            </header>
+            <section class="seen-panel">
+              <div class="seen-grid" id="seenList"></div>
+            </section>
+          </section>
+
+          <section class="view hidden" id="profileView" data-view="profile">
+            <header class="page-head">
+              <div>
+                <span class="eyebrow">Compte</span>
+                <h2>Profil</h2>
+              </div>
+            </header>
+
+            <section class="surface compact-panel">
+              <div class="profile-card">
+                <span class="profile-card__avatar">GP</span>
+                <div class="list" id="profileDetails"></div>
+              </div>
+
+              <section class="profile-admin admin-only hidden" id="profileAdminTools" aria-label="Gestion des admins">
+                <div class="panel-title">
+                  <span class="panel-title__index">A</span>
+                  <div>
+                    <span class="eyebrow">Équipe</span>
+                    <h3>Administrateurs</h3>
+                  </div>
+                </div>
+                <div class="admin-search">
+                  <span class="material-symbols-rounded" aria-hidden="true">search</span>
+                  <input id="adminUserSearch" placeholder="Rechercher" aria-label="Rechercher un utilisateur" />
+                </div>
+                <div class="list user-admin-list" id="userList"></div>
+              </section>
+            </section>
+          </section>
+        </div>
+      </div>
+
+      <div class="rating-modal hidden" id="ratingModal" role="dialog" aria-modal="true" aria-labelledby="ratingModalTitle">
+        <button class="modal-backdrop" id="ratingModalBackdrop" type="button" aria-label="Fermer"></button>
+        <section class="surface rating-modal__panel">
+          <button class="modal-close" id="ratingModalClose" type="button" aria-label="Fermer">×</button>
+          <div class="rating-modal__content">
+            <div class="rating-modal__poster" id="ratingModalPoster"></div>
+            <div class="rating-modal__meta">
+              <h2 id="ratingModalTitle"></h2>
+              <div class="movie-facts" id="ratingModalFacts"></div>
+              <p class="rating-modal__overview" id="ratingModalOverview"></p>
+              <div class="rating-modal__credits" id="ratingModalCredits"></div>
+              <a class="rating-modal__imdb hidden" id="ratingModalImdb" href="#" target="_blank" rel="noreferrer">IMDb</a>
+              <small id="ratingModalAverage"></small>
+              <div class="rating rating--modal" id="ratingModalStars"></div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="app-modal hidden" id="warningModal" role="dialog" aria-modal="true" aria-labelledby="warningModalTitle">
+        <button class="modal-backdrop" id="warningModalBackdrop" type="button" aria-label="Fermer"></button>
+        <section class="app-modal__panel">
+          <button class="modal-close" id="warningModalClose" type="button" aria-label="Fermer">×</button>
+          <span class="material-symbols-rounded app-modal__icon app-modal__icon--danger" aria-hidden="true">warning</span>
+          <h2 id="warningModalTitle">Warnings</h2>
+          <p id="warningModalIntro"></p>
+          <div class="warning-modal-list" id="warningModalList"></div>
+        </section>
+      </div>
+
+      <div class="app-modal hidden" id="deleteHistoryModal" role="dialog" aria-modal="true" aria-labelledby="deleteHistoryTitle">
+        <button class="modal-backdrop" id="deleteHistoryBackdrop" type="button" aria-label="Annuler"></button>
+        <section class="app-modal__panel app-modal__panel--compact">
+          <button class="modal-close" id="deleteHistoryClose" type="button" aria-label="Annuler">×</button>
+          <span class="material-symbols-rounded app-modal__icon app-modal__icon--danger" aria-hidden="true">delete</span>
+          <h2 id="deleteHistoryTitle">Supprimer de l’historique</h2>
+          <p id="deleteHistoryText"></p>
+          <div class="app-modal__actions">
+            <button class="ghost-button" id="deleteHistoryCancel" type="button">Annuler</button>
+            <button class="danger-button" id="deleteHistoryConfirm" type="button">
+              <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+              Supprimer
+            </button>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <script type="module" src="./src/main.js?v=grandpaff-refonte-2"></script>
+  </body>
+</html>
