@@ -101,8 +101,6 @@ const elements = {
   deleteHistoryClose: document.querySelector('#deleteHistoryClose'),
   deleteHistoryCancel: document.querySelector('#deleteHistoryCancel'),
   deleteHistoryConfirm: document.querySelector('#deleteHistoryConfirm'),
-  deleteHistoryConfirmLabel: document.querySelector('#deleteHistoryConfirmLabel'),
-  deleteHistoryTitle: document.querySelector('#deleteHistoryTitle'),
   deleteHistoryText: document.querySelector('#deleteHistoryText'),
   availabilityForm: document.querySelector('#availabilityForm'),
   availabilityRecurringMode: document.querySelector('#availabilityRecurringMode'),
@@ -137,8 +135,7 @@ let movieDetailsRequestId = 0;
 let activeMovieDetailsKey = '';
 let pendingMovie = null;
 let pendingWarnings = new Set();
-let pendingDeleteRequest = null;
-let deleteConfirmReturnFocus = null;
+let pendingHistoryDeleteMovie = null;
 let availabilityMode = 'weekly';
 let availabilitySelectedDays = new Set([(new Date().getDay() + 6) % 7]);
 let availabilityAllDay = false;
@@ -225,7 +222,7 @@ function renderProposalPreview(movie) {
   deleteButton.type = 'button';
   deleteButton.setAttribute('aria-label', `Supprimer ${movie.title}`);
   deleteButton.append(createIcon('delete'));
-  deleteButton.addEventListener('click', () => openDeleteConfirmModal(movie, 'proposal'));
+  deleteButton.addEventListener('click', () => deleteMovie(movie.key));
 
   elements.proposalPreview.append(media, meta, deleteButton);
 }
@@ -738,7 +735,7 @@ function renderMovies() {
       deleteButton.setAttribute('aria-label', `Supprimer ${movie.title}`);
       deleteButton.title = 'Supprimer';
       deleteButton.append(createIcon('delete'));
-      deleteButton.addEventListener('click', () => openDeleteConfirmModal(movie, 'proposal'));
+      deleteButton.addEventListener('click', () => deleteMovie(movie.key));
       item.append(deleteButton);
     }
     return item;
@@ -962,7 +959,7 @@ function createSeenMovieCard(movie) {
     deleteButton.setAttribute('aria-label', `Supprimer ${movie.title} de l’historique`);
     deleteButton.title = 'Supprimer';
     deleteButton.append(createIcon('delete'));
-    deleteButton.addEventListener('click', () => openDeleteConfirmModal(movie, 'history'));
+    deleteButton.addEventListener('click', () => openDeleteHistoryModal(movie));
     item.append(deleteButton);
   }
   return item;
@@ -1052,31 +1049,17 @@ function closeWarningModal() {
   elements.warningModalList.replaceChildren();
 }
 
-function openDeleteConfirmModal(movie, type) {
-  const isProposal = type === 'proposal';
-  if (!movie?.key) return;
-  if (isProposal && movie.proposedBy !== currentUser?.id) return;
-  if (!isProposal && !currentUser?.isAdmin) return;
-
-  deleteConfirmReturnFocus = document.activeElement;
-  pendingDeleteRequest = { movie, type };
-  elements.deleteHistoryTitle.textContent = isProposal ? 'Retirer ta proposition' : 'Supprimer de l’historique';
-  elements.deleteHistoryText.textContent = isProposal
-    ? `Retirer « ${movie.title} » de la sélection ?`
-    : `Supprimer « ${movie.title} » de l’historique ? Ses notes seront également retirées.`;
-  elements.deleteHistoryConfirmLabel.textContent = isProposal ? 'Retirer' : 'Supprimer';
+function openDeleteHistoryModal(movie) {
+  if (!currentUser?.isAdmin || !movie?.key) return;
+  pendingHistoryDeleteMovie = movie;
+  elements.deleteHistoryText.textContent = `Supprimer "${movie.title}" de l'historique ? Cette action retirera aussi ses notes.`;
   showModal(elements.deleteHistoryModal);
-  requestAnimationFrame(() => elements.deleteHistoryCancel.focus());
 }
 
-function closeDeleteConfirmModal() {
-  const returnFocus = deleteConfirmReturnFocus;
-  pendingDeleteRequest = null;
-  deleteConfirmReturnFocus = null;
+function closeDeleteHistoryModal() {
+  pendingHistoryDeleteMovie = null;
   hideModal(elements.deleteHistoryModal);
   elements.deleteHistoryConfirm.disabled = false;
-  elements.deleteHistoryConfirm.removeAttribute('aria-busy');
-  if (returnFocus?.isConnected) requestAnimationFrame(() => returnFocus.focus());
 }
 
 async function rateSeenMovie(key, rating) {
@@ -1103,7 +1086,7 @@ async function deleteSeenMovie(movie) {
     await Promise.all((movie.historyKeys?.length ? movie.historyKeys : [movie.key])
       .map((key) => remove(ref(db, `draw/history/${key}`))));
     if (activeSeenMovie?.key === movie.key) closeRatingModal();
-    closeDeleteConfirmModal();
+    closeDeleteHistoryModal();
   } catch {
     setMessage('Impossible de supprimer ce film de l’historique');
   }
@@ -1619,7 +1602,6 @@ async function deleteMovie(key) {
   try {
     await remove(ref(db, `movies/${key}`));
     setMessage('');
-    closeDeleteConfirmModal();
   } catch {
     setMessage('Impossible de supprimer le film');
   }
@@ -1767,19 +1749,16 @@ elements.ratingModalBackdrop.addEventListener('click', closeRatingModal);
 elements.ratingModalClose.addEventListener('click', closeRatingModal);
 elements.warningModalBackdrop.addEventListener('click', closeWarningModal);
 elements.warningModalClose.addEventListener('click', closeWarningModal);
-elements.deleteHistoryBackdrop.addEventListener('click', closeDeleteConfirmModal);
-elements.deleteHistoryClose.addEventListener('click', closeDeleteConfirmModal);
-elements.deleteHistoryCancel.addEventListener('click', closeDeleteConfirmModal);
+elements.deleteHistoryBackdrop.addEventListener('click', closeDeleteHistoryModal);
+elements.deleteHistoryClose.addEventListener('click', closeDeleteHistoryModal);
+elements.deleteHistoryCancel.addEventListener('click', closeDeleteHistoryModal);
 elements.deleteHistoryConfirm.addEventListener('click', async () => {
-  if (!pendingDeleteRequest) return;
-  const request = pendingDeleteRequest;
+  if (!pendingHistoryDeleteMovie) return;
+  const movie = pendingHistoryDeleteMovie;
   elements.deleteHistoryConfirm.disabled = true;
-  elements.deleteHistoryConfirm.setAttribute('aria-busy', 'true');
-  if (request.type === 'proposal') await deleteMovie(request.movie.key);
-  else await deleteSeenMovie(request.movie);
+  await deleteSeenMovie(movie);
   if (!elements.deleteHistoryModal.classList.contains('hidden')) {
     elements.deleteHistoryConfirm.disabled = false;
-    elements.deleteHistoryConfirm.removeAttribute('aria-busy');
   }
 });
 window.addEventListener('keydown', (event) => {
@@ -1788,7 +1767,7 @@ window.addEventListener('keydown', (event) => {
     return;
   }
   if (event.key === 'Escape' && !elements.deleteHistoryModal.classList.contains('hidden')) {
-    closeDeleteConfirmModal();
+    closeDeleteHistoryModal();
     return;
   }
   if (event.key === 'Escape' && !elements.warningModal.classList.contains('hidden')) {
