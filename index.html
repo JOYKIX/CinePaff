@@ -12,7 +12,7 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@500;600;700&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,300..600,0..1,-25..0&display=swap"
     />
-    <link rel="stylesheet" href="./styles.css?v=cinepaff-v2-38" />
+    <link rel="stylesheet" href="./styles.css?v=cinepaff-v2-41" />
     <link rel="icon" href="./image/logocinepafficon.svg?v=1" type="image/svg+xml" />
   </head>
   <body>
@@ -328,6 +328,12 @@
             </div>
             <div class="draw-controls">
               <span class="metric" id="drawPoolCount">0 film</span>
+              <label class="draw-force-select hidden" id="drawForcedMovieField">
+                <span>Forcer</span>
+                <select id="drawForcedMovie" aria-label="Film forcé pour le tirage test">
+                  <option value="">Aléatoire</option>
+                </select>
+              </label>
               <button class="line-toggle line-toggle--compact" id="drawKeepSelectionToggle" type="button" aria-pressed="false">
                 <span>Mode test</span>
                 <i aria-hidden="true"><span></span></i>
@@ -665,6 +671,6 @@
       </div>
     </main>
 
-    <script type="module" src="./src/main.js?v=cinepaff-v2-39"></script>
+    <script type="module" src="./src/main.js?v=cinepaff-v2-42"></script>
   </body>
 </html>

@@ -2149,6 +2149,50 @@
     gap: 1.2rem;
   }
 
+  .draw-force-select {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.25rem 0.35rem 0.25rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    color: var(--muted);
+    background: rgba(17, 21, 42, 0.72);
+  }
+
+  .draw-force-select > span {
+    color: var(--gold);
+    font-size: 0.56rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .draw-force-select select {
+    width: min(240px, 22vw);
+    min-width: 150px;
+    height: 34px;
+    padding: 0 1.9rem 0 0.55rem;
+    border: 0;
+    border-radius: calc(var(--radius-sm) - 3px);
+    color: var(--ink);
+    background: var(--black-soft);
+    font-size: 0.68rem;
+    font-weight: 700;
+    outline: 0;
+  }
+
+  .draw-force-select select:focus-visible {
+    outline: 2px solid var(--gold-light);
+    outline-offset: 1px;
+  }
+
+  .draw-force-select option {
+    color: var(--ink);
+    background: var(--black-soft);
+  }
+
   .draw-button {
     min-width: 142px;
   }
@@ -3917,6 +3961,16 @@
       display: grid;
       grid-template-columns: auto minmax(0, 1fr);
       gap: 0.8rem;
+    }
+
+    .draw-force-select {
+      width: 100%;
+      grid-column: 1 / -1;
+    }
+
+    .draw-force-select select {
+      width: 100%;
+      min-width: 0;
     }
 
     .draw-controls .metric {

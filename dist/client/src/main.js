@@ -81,6 +81,8 @@ const elements = {
   drawCountdown: document.querySelector('#drawCountdown'),
   drawBurst: document.querySelector('#drawBurst'),
   drawKeepSelectionToggle: document.querySelector('#drawKeepSelectionToggle'),
+  drawForcedMovieField: document.querySelector('#drawForcedMovieField'),
+  drawForcedMovie: document.querySelector('#drawForcedMovie'),
   userList: document.querySelector('#userList'),
   seenList: document.querySelector('#seenList'),
   seenCount: document.querySelector('#seenCount'),
@@ -542,6 +544,8 @@ function setKeepSelectionOnDraw(enabled) {
   keepSelectionOnDraw = enabled;
   elements.drawKeepSelectionToggle.classList.toggle('is-on', keepSelectionOnDraw);
   elements.drawKeepSelectionToggle.setAttribute('aria-pressed', keepSelectionOnDraw ? 'true' : 'false');
+  elements.drawForcedMovieField.classList.toggle('hidden', !keepSelectionOnDraw);
+  if (!keepSelectionOnDraw) elements.drawForcedMovie.value = '';
   if (currentUser) renderMovies();
 }
 
@@ -639,9 +643,10 @@ function getSelectionMovies() {
     .filter(Boolean);
 }
 
-function buildBalancedDrawPool() {
-  return getParticipantPools({ excludeLastDrawn: !keepSelectionOnDraw })
-    .map((pool) => pool[Math.floor(Math.random() * pool.length)]);
+function buildBalancedDrawPool(forcedMovieKey = '', testMode = keepSelectionOnDraw) {
+  return getParticipantPools({ excludeLastDrawn: !testMode })
+    .map((pool) => pool.find((movie) => testMode && movie.key === forcedMovieKey)
+      || pool[Math.floor(Math.random() * pool.length)]);
 }
 
 function wasLastDrawnUser() {
@@ -1067,6 +1072,26 @@ async function loadMovieDetails(movie, requestId) {
   }
 }
 
+function renderForcedDrawOptions() {
+  const previousValue = elements.drawForcedMovie.value;
+  const candidates = movieArray().sort((first, second) => (
+    String(first.proposedBy || '').localeCompare(String(second.proposedBy || ''))
+    || String(first.title || '').localeCompare(String(second.title || ''))
+  ));
+  const randomOption = document.createElement('option');
+  randomOption.value = '';
+  randomOption.textContent = candidates.length ? 'Aléatoire' : 'Aucun film';
+  const options = candidates.map((movie) => {
+    const option = document.createElement('option');
+    option.value = movie.key;
+    option.textContent = `${movie.title} — ${movie.proposedBy}`;
+    return option;
+  });
+  elements.drawForcedMovie.replaceChildren(randomOption, ...options);
+  if (candidates.some((movie) => movie.key === previousValue)) elements.drawForcedMovie.value = previousValue;
+  elements.drawForcedMovie.disabled = !keepSelectionOnDraw || drawInProgress || !candidates.length;
+}
+
 function renderMovies() {
   const list = getSelectionMovies().sort((a, b) => {
     const ownA = a.proposedBy === currentUser?.id;
@@ -1080,6 +1105,7 @@ function renderMovies() {
   elements.selectionCount.textContent = `${list.length} en lice`;
   elements.drawPoolCount.textContent = `${eligibleParticipants} participant${eligibleParticipants > 1 ? 's' : ''}`;
   elements.drawButton.disabled = eligibleParticipants === 0 || drawInProgress;
+  renderForcedDrawOptions();
   elements.searchForm.classList.toggle('hidden', !canPropose);
   if (!canPropose && pendingMovie) clearPendingMovie();
   setProposalStatus(wasLastDrawnUser()
@@ -1216,7 +1242,9 @@ function setCurrentPickArtwork(movie, details = null) {
   const backdropImageUrl = posterUrl(backdropPath, details ? 'w1280' : 'w780');
   if (backdropImageUrl) {
     const backdropImage = createArtworkImage(backdropImageUrl, { priority: 'high' });
-    backdropImage.addEventListener('error', () => elements.currentPickBackdrop.replaceChildren(), { once: true });
+    backdropImage.addEventListener('error', () => {
+      if (elements.currentPickBackdrop.firstElementChild === backdropImage) elements.currentPickBackdrop.replaceChildren();
+    }, { once: true });
     elements.currentPickBackdrop.append(backdropImage);
   }
 
@@ -2962,14 +2990,25 @@ async function playDrawAnimation(list, selected) {
 }
 
 async function drawMovie() {
-  const list = buildBalancedDrawPool();
+  const isTestDraw = keepSelectionOnDraw;
+  const forcedMovieKey = isTestDraw ? elements.drawForcedMovie.value : '';
+  const list = buildBalancedDrawPool(forcedMovieKey, isTestDraw);
   if (!canRunDraw() || !list.length || elements.drawButton.disabled) return;
   drawInProgress = true;
   elements.drawButton.disabled = true;
+  elements.drawKeepSelectionToggle.disabled = true;
+  elements.drawForcedMovie.disabled = true;
   let completed = false;
   try {
-    const { key: movieKey, ...pickedMovie } = pickDrawMovie(list);
-    const selected = { ...pickedMovie, movieKey, drawnAt: Date.now(), isTestDraw: keepSelectionOnDraw };
+    const forcedMovie = forcedMovieKey ? list.find((movie) => movie.key === forcedMovieKey) : null;
+    const { key: movieKey, ...pickedMovie } = forcedMovie || pickDrawMovie(list);
+    const selected = {
+      ...pickedMovie,
+      movieKey,
+      drawnAt: Date.now(),
+      isTestDraw,
+      isForcedTestDraw: Boolean(forcedMovie),
+    };
     const runtimeRequest = fetchMovieRuntime(selected).catch(() => null);
     await playDrawAnimation(list, selected);
     const runtime = await runtimeRequest;
@@ -2979,7 +3018,7 @@ async function drawMovie() {
       'draw/current': selected,
       [`draw/history/${historyEntry.key}`]: selected,
     };
-    if (!keepSelectionOnDraw) {
+    if (!isTestDraw) {
       changes['draw/lastDrawn'] = selected;
       changes[`movies/${movieKey}`] = null;
       const userMovies = proposedMovies(selected.proposedBy);
@@ -2988,7 +3027,7 @@ async function drawMovie() {
       if (primary?.key === movieKey && replacement) changes[`movies/${replacement.key}/isPrimary`] = true;
     }
     await update(ref(db), changes);
-    if (!keepSelectionOnDraw) {
+    if (!isTestDraw) {
       lastDrawn = selected;
       delete movies[movieKey];
       const nextPrimaryKey = Object.keys(changes)
@@ -3006,6 +3045,8 @@ async function drawMovie() {
     window.setTimeout(renderDraw, 900);
   } finally {
     drawInProgress = false;
+    elements.drawKeepSelectionToggle.disabled = false;
+    elements.drawForcedMovie.disabled = !keepSelectionOnDraw;
     elements.drawButtonLabel.textContent = 'Lancer';
     if (completed) renderMovies();
     else elements.drawButton.disabled = list.length === 0;
