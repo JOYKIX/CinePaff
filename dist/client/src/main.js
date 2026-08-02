@@ -55,9 +55,12 @@ const elements = {
   movieList: document.querySelector('#movieList'),
   selectionCount: document.querySelector('#selectionCount'),
   currentPick: document.querySelector('#currentPick'),
-  currentPickPoster: document.querySelector('#currentPickPoster'),
+  currentPickBackdrop: document.querySelector('#currentPickBackdrop'),
+  currentPickLogo: document.querySelector('#currentPickLogo'),
   currentPickTitle: document.querySelector('#currentPickTitle'),
   currentPickUser: document.querySelector('#currentPickUser'),
+  currentPickBestSlot: document.querySelector('#currentPickBestSlot'),
+  currentPickBestSlotValue: document.querySelector('#currentPickBestSlotValue'),
   winnerCard: document.querySelector('#winnerCard'),
   winnerTitle: document.querySelector('#winnerTitle'),
   winnerUser: document.querySelector('#winnerUser'),
@@ -193,6 +196,7 @@ let activeSeenMovie = null;
 let ratedMovieKey = '';
 let keepSelectionOnDraw = false;
 let movieDetailsRequestId = 0;
+let selectionHeroRequestId = 0;
 let activeMovieDetailsKey = '';
 let movieOverviewExpanded = false;
 let pendingMovie = null;
@@ -1146,12 +1150,54 @@ function renderDraw() {
   elements.currentPick.classList.toggle('hidden', !draw);
   elements.currentPickTitle.textContent = draw?.title || '';
   elements.currentPickUser.textContent = draw?.proposedBy ? `Proposé par ${draw.proposedBy}` : '';
-  elements.currentPickPoster.replaceChildren();
+  renderCurrentPickHero(draw);
   if (draw) {
     elements.winnerPoster.append(createPosterMedia(draw, 'w500'));
-    elements.currentPickPoster.append(createPosterMedia(draw, 'w185'));
   }
   if (!isDrawing) elements.drawStatus.textContent = draw ? 'À L’AFFICHE' : 'PRÊT';
+}
+
+function setCurrentPickArtwork(movie, details = null) {
+  elements.currentPickBackdrop.replaceChildren();
+  elements.currentPickLogo.replaceChildren();
+  elements.currentPickLogo.classList.add('hidden');
+  elements.currentPickTitle.classList.remove('now-playing__title--logo');
+  if (!movie) return;
+
+  const backdropPath = details?.backdrop_path || details?.images?.backdrops?.[0]?.file_path || movie.posterPath || '';
+  const backdropImageUrl = posterUrl(backdropPath, details ? 'w1280' : 'w780');
+  if (backdropImageUrl) {
+    const backdropImage = createArtworkImage(backdropImageUrl, { priority: 'high' });
+    backdropImage.addEventListener('error', () => elements.currentPickBackdrop.replaceChildren(), { once: true });
+    elements.currentPickBackdrop.append(backdropImage);
+  }
+
+  const logo = getPreferredMovieLogo(details);
+  const logoImageUrl = posterUrl(logo?.file_path, 'w500');
+  if (logoImageUrl) {
+    const logoImage = createArtworkImage(logoImageUrl, { priority: 'high' });
+    logoImage.addEventListener('error', () => {
+      elements.currentPickLogo.replaceChildren();
+      elements.currentPickLogo.classList.add('hidden');
+      elements.currentPickTitle.classList.remove('now-playing__title--logo');
+    }, { once: true });
+    elements.currentPickLogo.append(logoImage);
+    elements.currentPickLogo.classList.remove('hidden');
+    elements.currentPickTitle.classList.add('now-playing__title--logo');
+  }
+}
+
+async function renderCurrentPickHero(movie) {
+  const requestId = ++selectionHeroRequestId;
+  setCurrentPickArtwork(movie);
+  if (!movie?.tmdbId) return;
+  try {
+    const details = await fetchMovieDetails(movie);
+    if (requestId !== selectionHeroRequestId || !draw || getMovieDetailsCacheKey(draw) !== getMovieDetailsCacheKey(movie)) return;
+    setCurrentPickArtwork(movie, details);
+  } catch {
+    // Keep the poster-based fallback already rendered.
+  }
 }
 
 function normalizeRating(rating) {
@@ -1850,14 +1896,22 @@ function renderAvailabilityRecommendations() {
   if (!slots.length) {
     elements.availabilityBestSlot.textContent = 'À compléter';
     elements.availabilityBestCoverage.textContent = '0 disponible';
+    elements.currentPickBestSlot.classList.add('hidden');
+    elements.currentPickBestSlotValue.textContent = '';
+    elements.currentPickBestSlotValue.removeAttribute('datetime');
     elements.availabilityRecommendations.replaceChildren(createEmptyState('Ajoutez vos créneaux pour lancer le calcul'));
     return;
   }
 
   const best = slots[0];
+  const bestDay = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: '2-digit', month: 'long' }).format(best.start);
+  const bestStartTime = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' }).format(best.start);
   elements.availabilityBestSlot.textContent = formatSlotRange(best.start, best.end);
   elements.availabilityBestCoverage.textContent = `${best.userIds.length}/${totalUsers} disponibles`;
   elements.availabilityBestPeople.replaceChildren(...best.userIds.slice(0, 5).map((userId) => createInitialAvatar(userId, true)));
+  elements.currentPickBestSlotValue.textContent = `${bestDay} · ${bestStartTime}`;
+  elements.currentPickBestSlotValue.dateTime = new Date(best.start).toISOString();
+  elements.currentPickBestSlot.classList.toggle('hidden', !draw);
 
   elements.availabilityRecommendations.replaceChildren(...slots.map((slot, index) => {
     const item = document.createElement('article');

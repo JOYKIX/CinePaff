@@ -12,7 +12,7 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@500;600;700&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,300..600,0..1,-25..0&display=swap"
     />
-    <link rel="stylesheet" href="./styles.css?v=cinepaff-v2-35" />
+    <link rel="stylesheet" href="./styles.css?v=cinepaff-v2-37" />
     <link rel="icon" href="./image/logocinepafficon.svg?v=1" type="image/svg+xml" />
   </head>
   <body>
@@ -118,15 +118,20 @@
               <h2>La sélection</h2>
             </div>
             <section class="selection-spotlight hidden" id="currentPick" aria-label="Film actuellement tiré">
-              <div class="now-playing__poster" id="currentPickPoster"></div>
+              <div class="selection-spotlight__backdrop" id="currentPickBackdrop" aria-hidden="true"></div>
               <div class="now-playing__content">
                 <span class="live-label"><i></i> À regarder</span>
+                <div class="now-playing__logo hidden" id="currentPickLogo" aria-hidden="true"></div>
                 <strong id="currentPickTitle"></strong>
                 <small id="currentPickUser"></small>
+                <a class="now-playing__link" href="#availability">
+                  <span>Choisir une date</span>
+                  <span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span>
+                </a>
               </div>
-              <a class="now-playing__link" href="#availability">
-                <span>Choisir une date</span>
-                <span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span>
+              <a class="selection-spotlight__slot hidden" id="currentPickBestSlot" href="#availability">
+                <span>Meilleur créneau</span>
+                <time id="currentPickBestSlotValue"></time>
               </a>
             </section>
           </header>
@@ -661,6 +666,6 @@
       </div>
     </main>
 
-    <script type="module" src="./src/main.js?v=cinepaff-v2-35"></script>
+    <script type="module" src="./src/main.js?v=cinepaff-v2-37"></script>
   </body>
 </html>
