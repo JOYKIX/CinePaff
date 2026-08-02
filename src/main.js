@@ -56,9 +56,11 @@ const elements = {
   selectionCount: document.querySelector('#selectionCount'),
   currentPick: document.querySelector('#currentPick'),
   currentPickBackdrop: document.querySelector('#currentPickBackdrop'),
+  currentPickContent: document.querySelector('#currentPick .now-playing__content'),
   currentPickLogo: document.querySelector('#currentPickLogo'),
   currentPickTitle: document.querySelector('#currentPickTitle'),
   currentPickUser: document.querySelector('#currentPickUser'),
+  currentPickLink: document.querySelector('#currentPickLink'),
   currentPickBestSlot: document.querySelector('#currentPickBestSlot'),
   currentPickBestSlotValue: document.querySelector('#currentPickBestSlotValue'),
   winnerCard: document.querySelector('#winnerCard'),
@@ -199,6 +201,10 @@ let ratedMovieKey = '';
 let keepSelectionOnDraw = false;
 let movieDetailsRequestId = 0;
 let selectionHeroRequestId = 0;
+let selectionHeroActiveKey = '';
+let selectionPreviewMovieKey = '';
+let selectionPreviewIndex = 0;
+let selectionPreviewTimer = null;
 let activeMovieDetailsKey = '';
 let movieOverviewExpanded = false;
 let pendingMovie = null;
@@ -219,6 +225,7 @@ let searchTimer = null;
 let searchController = null;
 let avatarCropState = null;
 const drawAnimationDuration = 3600;
+const selectionPreviewDuration = 5000;
 const movieDetailsCache = new Map();
 const movieRuntimeCache = new Map();
 const modalReturnFocus = new WeakMap();
@@ -595,6 +602,8 @@ function setRoute(nextRoute) {
   document.body.dataset.route = route;
   document.title = `${routeConfig[route].label} — CinePaff`;
   if (previousRoute !== route) window.scrollTo({ top: 0, behavior: 'auto' });
+  if (route !== 'home') stopSelectionPreview();
+  else if (currentUser && previousRoute !== route) renderSelectionHero();
 }
 
 function syncRouteFromHash() {
@@ -641,6 +650,13 @@ function getSelectionMovies() {
   return getParticipantPools()
     .map(getPrimaryMovie)
     .filter(Boolean);
+}
+
+function getSelectionPreviewMovies() {
+  return getSelectionMovies().sort((first, second) => (
+    (first.createdAt || 0) - (second.createdAt || 0)
+    || String(first.title || '').localeCompare(String(second.title || ''), 'fr')
+  ));
 }
 
 function buildBalancedDrawPool(forcedMovieKey = '', testMode = keepSelectionOnDraw) {
@@ -815,6 +831,53 @@ function createWarningButton(movie) {
     openWarningModal(movie);
   });
   return button;
+}
+
+function getMovieSeenUserIds(movie) {
+  return Object.entries(movie?.seenBy || {})
+    .filter(([, value]) => Boolean(value))
+    .map(([userId]) => userId)
+    .sort((first, second) => first.localeCompare(second));
+}
+
+function createSelectionSeenButton(movie) {
+  const viewerIds = getMovieSeenUserIds(movie);
+  const isSeenByCurrentUser = viewerIds.includes(currentUser?.id);
+  const groupSize = Math.max(Object.keys(users).length, viewerIds.length, 1);
+  const button = document.createElement('button');
+  button.className = `selection-seen-button${isSeenByCurrentUser ? ' is-seen' : ''}`;
+  button.type = 'button';
+  button.setAttribute('aria-pressed', isSeenByCurrentUser ? 'true' : 'false');
+  button.setAttribute('aria-label', isSeenByCurrentUser
+    ? `Retirer mon signal déjà vu pour ${movie.title}`
+    : `Marquer ${movie.title} comme déjà vu`);
+  button.title = viewerIds.length
+    ? `Déjà vu par ${viewerIds.length}/${groupSize} : ${viewerIds.join(', ')}`
+    : `Personne n’a encore marqué ${movie.title} comme déjà vu`;
+
+  const count = document.createElement('span');
+  count.textContent = `${viewerIds.length}/${groupSize}`;
+  count.setAttribute('aria-hidden', 'true');
+  button.append(createIcon('visibility'), count);
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    toggleMovieSeen(movie, button);
+  });
+  return button;
+}
+
+async function toggleMovieSeen(movie, button) {
+  if (!currentUser?.id || !movie?.key || button.disabled) return;
+  const isAlreadySeen = Boolean(movie.seenBy?.[currentUser.id]);
+  button.disabled = true;
+  button.setAttribute('aria-busy', 'true');
+  try {
+    await set(ref(db, `movies/${movie.key}/seenBy/${currentUser.id}`), isAlreadySeen ? null : Date.now());
+  } catch {
+    button.disabled = false;
+    button.removeAttribute('aria-busy');
+    setMessage('Impossible de mettre à jour le statut déjà vu');
+  }
 }
 
 function createMovieTitleRow(movie, options = {}) {
@@ -1106,6 +1169,7 @@ function renderMovies() {
   elements.drawPoolCount.textContent = `${eligibleParticipants} participant${eligibleParticipants > 1 ? 's' : ''}`;
   elements.drawButton.disabled = eligibleParticipants === 0 || drawInProgress;
   renderForcedDrawOptions();
+  if (!draw) renderSelectionHero();
   elements.searchForm.classList.toggle('hidden', !canPropose);
   if (!canPropose && pendingMovie) clearPendingMovie();
   setProposalStatus(wasLastDrawnUser()
@@ -1123,6 +1187,7 @@ function renderMovies() {
     const item = document.createElement('article');
     item.className = 'poster-card';
     item.append(createCardButton(movie, `Voir la fiche de ${movie.title}`, () => openRatingModal(movie, { allowRating: false })));
+    item.append(createSelectionSeenButton(movie));
     const warningButton = createWarningButton(movie);
     if (warningButton) item.append(warningButton);
     return item;
@@ -1221,14 +1286,105 @@ function renderDraw() {
   elements.winnerTitle.textContent = draw?.title || '';
   elements.winnerUser.textContent = draw?.proposedBy ? `Proposé par ${draw.proposedBy}` : '';
   elements.winnerPoster.replaceChildren();
-  elements.currentPick.classList.toggle('hidden', !draw);
-  elements.currentPickTitle.textContent = draw?.title || '';
-  elements.currentPickUser.textContent = draw?.proposedBy ? `Proposé par ${draw.proposedBy}` : '';
-  renderCurrentPickHero(draw);
+  renderSelectionHero();
   if (draw) {
     elements.winnerPoster.append(createPosterMedia(draw, 'w500'));
   }
-  if (!isDrawing) elements.drawStatus.textContent = draw ? 'À L’AFFICHE' : 'PRÊT';
+  if (!drawInProgress) elements.drawStatus.textContent = draw ? 'À L’AFFICHE' : 'PRÊT';
+}
+
+function stopSelectionPreview() {
+  window.clearTimeout(selectionPreviewTimer);
+  selectionPreviewTimer = null;
+}
+
+function clearSelectionHeroOutgoing() {
+  elements.currentPick.querySelectorAll('.selection-spotlight__backdrop--outgoing, .now-playing__content--outgoing')
+    .forEach((element) => element.remove());
+}
+
+function removeCloneIds(element) {
+  if (element.id) element.removeAttribute('id');
+  element.querySelectorAll('[id]').forEach((child) => child.removeAttribute('id'));
+  element.querySelectorAll('a, button, input, select, textarea').forEach((control) => control.setAttribute('tabindex', '-1'));
+  element.setAttribute('aria-hidden', 'true');
+  element.setAttribute('inert', '');
+}
+
+function prepareSelectionHeroSlide() {
+  clearSelectionHeroOutgoing();
+  if (elements.currentPick.classList.contains('hidden') || !elements.currentPickTitle.textContent) return;
+
+  const outgoingBackdrop = elements.currentPickBackdrop.cloneNode(true);
+  const outgoingContent = elements.currentPickContent.cloneNode(true);
+  outgoingBackdrop.classList.add('selection-spotlight__backdrop--outgoing');
+  outgoingContent.classList.add('now-playing__content--outgoing');
+  removeCloneIds(outgoingBackdrop);
+  removeCloneIds(outgoingContent);
+  elements.currentPick.append(outgoingBackdrop, outgoingContent);
+  window.setTimeout(() => {
+    outgoingBackdrop.remove();
+    outgoingContent.remove();
+  }, 720);
+}
+
+function scheduleSelectionPreview(candidates) {
+  stopSelectionPreview();
+  if (draw || route !== 'home' || candidates.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  selectionPreviewTimer = window.setTimeout(() => {
+    if (draw || route !== 'home') return;
+    const latestCandidates = getSelectionPreviewMovies();
+    if (latestCandidates.length < 2) {
+      renderSelectionHero();
+      return;
+    }
+    const currentIndex = latestCandidates.findIndex((movie) => movie.key === selectionPreviewMovieKey);
+    selectionPreviewIndex = ((currentIndex >= 0 ? currentIndex : selectionPreviewIndex) + 1) % latestCandidates.length;
+    selectionPreviewMovieKey = latestCandidates[selectionPreviewIndex].key;
+    renderSelectionHero({ animate: true });
+  }, selectionPreviewDuration);
+}
+
+function renderSelectionHero({ animate = false } = {}) {
+  const candidates = draw ? [] : getSelectionPreviewMovies();
+  let movie = draw;
+
+  if (!movie && candidates.length) {
+    const preservedIndex = candidates.findIndex((candidate) => candidate.key === selectionPreviewMovieKey);
+    selectionPreviewIndex = preservedIndex >= 0
+      ? preservedIndex
+      : Math.min(selectionPreviewIndex, candidates.length - 1);
+    movie = candidates[selectionPreviewIndex];
+    selectionPreviewMovieKey = movie.key;
+  }
+
+  if (!movie) {
+    stopSelectionPreview();
+    clearSelectionHeroOutgoing();
+    selectionHeroActiveKey = '';
+    elements.currentPick.classList.add('hidden');
+    elements.currentPick.classList.remove('is-preview', 'is-switching');
+    elements.currentPickTitle.textContent = '';
+    elements.currentPickUser.textContent = '';
+    setCurrentPickArtwork(null);
+    return;
+  }
+
+  const isPreview = !draw;
+  if (animate && isPreview) prepareSelectionHeroSlide();
+  else clearSelectionHeroOutgoing();
+  elements.currentPick.classList.remove('hidden', 'is-switching');
+  elements.currentPick.classList.toggle('is-preview', isPreview);
+  elements.currentPick.setAttribute('aria-label', isPreview ? 'Films en lice' : 'Film actuellement tiré');
+  elements.currentPickTitle.textContent = movie.title || '';
+  elements.currentPickUser.textContent = movie.proposedBy ? `Proposé par ${movie.proposedBy}` : '';
+  elements.currentPickLink.classList.toggle('hidden', isPreview);
+  if (isPreview) elements.currentPickBestSlot.classList.add('hidden');
+
+  void elements.currentPick.offsetWidth;
+  if (animate) elements.currentPick.classList.add('is-switching');
+  renderCurrentPickHero(movie);
+  scheduleSelectionPreview(candidates);
 }
 
 function setCurrentPickArtwork(movie, details = null) {
@@ -1265,13 +1421,15 @@ function setCurrentPickArtwork(movie, details = null) {
 
 async function renderCurrentPickHero(movie) {
   const requestId = ++selectionHeroRequestId;
+  const heroKey = movie ? getMovieDetailsCacheKey(movie) : '';
+  selectionHeroActiveKey = heroKey;
   setCurrentPickArtwork(movie);
   if (!movie?.tmdbId) return;
   try {
     const details = await fetchMovieDetails(movie);
-    if (requestId !== selectionHeroRequestId || !draw || getMovieDetailsCacheKey(draw) !== getMovieDetailsCacheKey(movie)) return;
+    if (requestId !== selectionHeroRequestId || selectionHeroActiveKey !== heroKey) return;
     setCurrentPickArtwork(movie, details);
-    applyDrawRuntime(movie, details?.runtime);
+    if (draw && getMovieDetailsCacheKey(draw) === heroKey) applyDrawRuntime(movie, details?.runtime);
   } catch {
     // Keep the poster-based fallback already rendered.
   }
@@ -1685,6 +1843,7 @@ async function deleteCurrentAccount() {
         return;
       }
       if (movie.warningBy === deletedUser.id) changes[`movies/${key}/warningBy`] = null;
+      if (movie.seenBy?.[deletedUser.id] !== undefined) changes[`movies/${key}/seenBy/${deletedUser.id}`] = null;
     });
 
     ['current', 'lastDrawn'].forEach((drawKey) => {
@@ -1692,6 +1851,7 @@ async function deleteCurrentAccount() {
       if (!movie) return;
       if (movie.proposedBy === deletedUser.id) changes[`draw/${drawKey}/proposedBy`] = 'COMPTE SUPPRIMÉ';
       if (movie.warningBy === deletedUser.id) changes[`draw/${drawKey}/warningBy`] = null;
+      if (movie.seenBy?.[deletedUser.id] !== undefined) changes[`draw/${drawKey}/seenBy/${deletedUser.id}`] = null;
     });
 
     Object.entries(data.draw?.history || {}).forEach(([key, movie]) => {
@@ -1699,6 +1859,7 @@ async function deleteCurrentAccount() {
       if (movie.warningBy === deletedUser.id) changes[`draw/history/${key}/warningBy`] = null;
       if (movie.ratings?.[deletedUser.id] !== undefined) changes[`draw/history/${key}/ratings/${deletedUser.id}`] = null;
       if (movie.comments?.[deletedUser.id] !== undefined) changes[`draw/history/${key}/comments/${deletedUser.id}`] = null;
+      if (movie.seenBy?.[deletedUser.id] !== undefined) changes[`draw/history/${key}/seenBy/${deletedUser.id}`] = null;
     });
 
     const remainingUsers = Object.entries(data.users || {})
@@ -2366,12 +2527,20 @@ async function updateProfileId(event) {
     Object.entries(data.movies || {}).forEach(([key, movie]) => {
       if (movie.proposedBy === previousId) changes[`movies/${key}/proposedBy`] = nextId;
       if (movie.warningBy === previousId) changes[`movies/${key}/warningBy`] = nextId;
+      if (movie.seenBy?.[previousId] !== undefined) {
+        changes[`movies/${key}/seenBy/${nextId}`] = movie.seenBy[previousId];
+        changes[`movies/${key}/seenBy/${previousId}`] = null;
+      }
     });
 
     ['current', 'lastDrawn'].forEach((drawKey) => {
       const movie = data.draw?.[drawKey];
       if (movie?.proposedBy === previousId) changes[`draw/${drawKey}/proposedBy`] = nextId;
       if (movie?.warningBy === previousId) changes[`draw/${drawKey}/warningBy`] = nextId;
+      if (movie?.seenBy?.[previousId] !== undefined) {
+        changes[`draw/${drawKey}/seenBy/${nextId}`] = movie.seenBy[previousId];
+        changes[`draw/${drawKey}/seenBy/${previousId}`] = null;
+      }
     });
 
     Object.entries(data.draw?.history || {}).forEach(([key, movie]) => {
@@ -2384,6 +2553,10 @@ async function updateProfileId(event) {
       if (movie.comments?.[previousId] !== undefined) {
         changes[`draw/history/${key}/comments/${nextId}`] = movie.comments[previousId];
         changes[`draw/history/${key}/comments/${previousId}`] = null;
+      }
+      if (movie.seenBy?.[previousId] !== undefined) {
+        changes[`draw/history/${key}/seenBy/${nextId}`] = movie.seenBy[previousId];
+        changes[`draw/history/${key}/seenBy/${previousId}`] = null;
       }
     });
 
@@ -3085,6 +3258,7 @@ elements.profileShortcuts.forEach((shortcut) => {
 window.addEventListener('hashchange', syncRouteFromHash);
 
 function logoutCurrentUser() {
+  stopSelectionPreview();
   clearStoredUser();
   currentUser = null;
   render();
