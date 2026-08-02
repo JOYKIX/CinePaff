@@ -208,6 +208,9 @@ let availabilityAllDay = false;
 let availabilityCalendarSelection = { start: null, end: null };
 let drawRuntimeMinutes = null;
 let drawRuntimeKey = '';
+let drawRuntimeLoadingKey = '';
+let drawRuntimeRetryTimer = null;
+let drawRuntimeRetryCount = 0;
 let drawInProgress = false;
 let messageTimer = null;
 let searchTimer = null;
@@ -215,6 +218,7 @@ let searchController = null;
 let avatarCropState = null;
 const drawAnimationDuration = 3600;
 const movieDetailsCache = new Map();
+const movieRuntimeCache = new Map();
 const modalReturnFocus = new WeakMap();
 const availabilityStepMinutes = 30;
 const availabilityHorizonDays = 14;
@@ -835,7 +839,51 @@ async function fetchMovieDetails(movie) {
   if (!response.ok) throw new Error('Movie details failed');
   const details = await response.json();
   movieDetailsCache.set(cacheKey, details);
+  const runtime = normalizeRuntimeMinutes(details.runtime);
+  if (runtime) movieRuntimeCache.set(cacheKey, runtime);
   return details;
+}
+
+function normalizeRuntimeMinutes(value) {
+  const runtime = Number(value);
+  return Number.isFinite(runtime) && runtime > 0 && runtime <= 1440 ? Math.round(runtime) : null;
+}
+
+async function fetchMovieRuntime(movie) {
+  const embeddedRuntime = normalizeRuntimeMinutes(movie?.runtime);
+  if (embeddedRuntime) return embeddedRuntime;
+  if (!movie?.tmdbId) return null;
+
+  const cacheKey = getMovieDetailsCacheKey(movie);
+  const detailsRuntime = normalizeRuntimeMinutes(movieDetailsCache.get(cacheKey)?.runtime);
+  if (detailsRuntime) return detailsRuntime;
+  if (movieRuntimeCache.has(cacheKey)) return movieRuntimeCache.get(cacheKey);
+
+  const request = (async () => {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 7000);
+    try {
+      const response = await fetch(`https://api.themoviedb.org/3/movie/${movie.tmdbId}?language=fr-FR`, {
+        headers: { Authorization: `Bearer ${tmdbToken}`, accept: 'application/json' },
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error('Movie runtime failed');
+      const runtime = normalizeRuntimeMinutes((await response.json()).runtime);
+      if (!runtime) throw new Error('Movie runtime unavailable');
+      movieRuntimeCache.set(cacheKey, runtime);
+      return runtime;
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  })();
+
+  movieRuntimeCache.set(cacheKey, request);
+  try {
+    return await request;
+  } catch (error) {
+    if (movieRuntimeCache.get(cacheKey) === request) movieRuntimeCache.delete(cacheKey);
+    throw error;
+  }
 }
 
 function getDirector(details) {
@@ -1195,6 +1243,7 @@ async function renderCurrentPickHero(movie) {
     const details = await fetchMovieDetails(movie);
     if (requestId !== selectionHeroRequestId || !draw || getMovieDetailsCacheKey(draw) !== getMovieDetailsCacheKey(movie)) return;
     setCurrentPickArtwork(movie, details);
+    applyDrawRuntime(movie, details?.runtime);
   } catch {
     // Keep the poster-based fallback already rendered.
   }
@@ -1776,14 +1825,27 @@ function renderAvailabilityList() {
   }));
 }
 
+function getAvailabilityRuntimeState() {
+  const storedRuntime = normalizeRuntimeMinutes(draw?.runtime);
+  const currentDrawKey = draw?.tmdbId ? `tmdb-${draw.tmdbId}` : '';
+  const resolvedRuntime = drawRuntimeKey === currentDrawKey ? normalizeRuntimeMinutes(drawRuntimeMinutes) : null;
+  const exactRuntime = storedRuntime || resolvedRuntime;
+  return {
+    minutes: exactRuntime || defaultMovieRuntimeMinutes,
+    exact: Boolean(exactRuntime),
+  };
+}
+
 function getAvailabilityRuntime() {
-  return drawRuntimeMinutes || defaultMovieRuntimeMinutes;
+  return getAvailabilityRuntimeState().minutes;
 }
 
 function getDrawRuntimeLabel() {
   if (!draw) return `Aucun film tiré · estimation ${formatRuntime(defaultMovieRuntimeMinutes)}`;
-  if (drawRuntimeMinutes) return `${draw.title} · ${formatRuntime(drawRuntimeMinutes)}`;
-  return `${draw.title} · estimation ${formatRuntime(defaultMovieRuntimeMinutes)}`;
+  const runtime = getAvailabilityRuntimeState();
+  return runtime.exact
+    ? `${draw.title} · ${formatRuntime(runtime.minutes)}`
+    : `${draw.title} · estimation provisoire ${formatRuntime(runtime.minutes)}`;
 }
 
 function buildAvailabilityIntervals() {
@@ -1888,10 +1950,11 @@ function renderAvailabilityRoster() {
 }
 
 function renderAvailabilityRecommendations() {
-  const slots = getDistinctAvailabilitySlots(3);
   const totalUsers = Math.max(1, Object.keys(users).length);
   elements.availabilityRuntime.textContent = getDrawRuntimeLabel();
   elements.availabilityBestPeople.replaceChildren();
+
+  const slots = getDistinctAvailabilitySlots(3);
 
   if (!slots.length) {
     elements.availabilityBestSlot.textContent = 'À compléter';
@@ -2139,25 +2202,87 @@ async function handleAvailabilitySubmit(event) {
   }
 }
 
+function clearDrawRuntimeRetry() {
+  if (drawRuntimeRetryTimer) window.clearTimeout(drawRuntimeRetryTimer);
+  drawRuntimeRetryTimer = null;
+}
+
+function applyDrawRuntime(movie, value, { persist = true } = {}) {
+  const runtime = normalizeRuntimeMinutes(value);
+  const movieKey = movie?.tmdbId ? `tmdb-${movie.tmdbId}` : '';
+  const currentDrawKey = draw?.tmdbId ? `tmdb-${draw.tmdbId}` : '';
+  if (!runtime || !movieKey || movieKey !== currentDrawKey) return false;
+
+  const shouldPersist = normalizeRuntimeMinutes(draw.runtime) !== runtime;
+  drawRuntimeKey = movieKey;
+  drawRuntimeMinutes = runtime;
+  drawRuntimeRetryCount = 0;
+  clearDrawRuntimeRetry();
+  draw.runtime = runtime;
+  renderAvailability();
+
+  if (persist && shouldPersist) {
+    update(ref(db, 'draw/current'), { runtime }).catch((error) => {
+      console.warn('[cinepaff:runtime] impossible de mémoriser la durée exacte', {
+        tmdbId: movie.tmdbId,
+        message: error?.message || String(error),
+      });
+    });
+  }
+  return true;
+}
+
 async function refreshDrawRuntime() {
   const nextKey = draw?.tmdbId ? `tmdb-${draw.tmdbId}` : '';
   if (!nextKey) {
+    clearDrawRuntimeRetry();
     drawRuntimeKey = '';
+    drawRuntimeLoadingKey = '';
     drawRuntimeMinutes = null;
+    drawRuntimeRetryCount = 0;
     renderAvailability();
     return;
   }
-  if (drawRuntimeKey === nextKey) return;
+
+  if (drawRuntimeKey && drawRuntimeKey !== nextKey) {
+    clearDrawRuntimeRetry();
+    drawRuntimeRetryCount = 0;
+    drawRuntimeMinutes = null;
+  }
+
+  const storedRuntime = normalizeRuntimeMinutes(draw.runtime);
+  if (storedRuntime) {
+    applyDrawRuntime(draw, storedRuntime, { persist: false });
+    return;
+  }
+
+  if (drawRuntimeLoadingKey === nextKey) return;
   drawRuntimeKey = nextKey;
-  drawRuntimeMinutes = null;
+  drawRuntimeLoadingKey = nextKey;
   renderAvailability();
   try {
-    const details = await fetchMovieDetails(draw);
-    if (drawRuntimeKey !== nextKey) return;
-    drawRuntimeMinutes = Number(details?.runtime) || null;
-    renderAvailability();
-  } catch {
-    if (drawRuntimeKey === nextKey) renderAvailability();
+    const runtime = await fetchMovieRuntime(draw);
+    if (drawRuntimeKey !== nextKey || !draw || `tmdb-${draw.tmdbId}` !== nextKey) return;
+    applyDrawRuntime(draw, runtime);
+  } catch (error) {
+    if (drawRuntimeKey === nextKey) {
+      renderAvailability();
+      console.warn('[cinepaff:runtime] durée TMDB indisponible, estimation provisoire conservée', {
+        tmdbId: draw?.tmdbId,
+        tentative: drawRuntimeRetryCount + 1,
+        message: error?.message || String(error),
+      });
+      if (drawRuntimeRetryCount < 2) {
+        drawRuntimeRetryCount += 1;
+        clearDrawRuntimeRetry();
+        drawRuntimeRetryTimer = window.setTimeout(() => {
+          drawRuntimeRetryTimer = null;
+          refreshDrawRuntime();
+        }, 2000 * drawRuntimeRetryCount);
+      }
+    }
+  } finally {
+    if (drawRuntimeLoadingKey === nextKey) drawRuntimeLoadingKey = '';
   }
 }
 
@@ -2607,6 +2732,12 @@ function selectPendingMovie(movie) {
     return;
   }
   pendingMovie = movieFromSearchResult(movie);
+  const selectedMovie = pendingMovie;
+  fetchMovieRuntime(selectedMovie).then((runtime) => {
+    if (pendingMovie === selectedMovie && runtime) pendingMovie.runtime = runtime;
+  }).catch(() => {
+    // La durée sera retentée au tirage si elle n'est pas disponible ici.
+  });
   pendingWarnings = new Set();
   searchController?.abort();
   elements.results.replaceChildren();
@@ -2637,7 +2768,7 @@ async function proposeMovie() {
     .map((warning) => ({ id: warning.id, label: warning.label }));
 
   try {
-    await push(ref(db, 'movies'), {
+    const movieData = {
       tmdbId: pendingMovie.tmdbId,
       title: pendingMovie.title,
       originalTitle: pendingMovie.originalTitle,
@@ -2649,7 +2780,10 @@ async function proposeMovie() {
       warningBy: currentUser.id,
       isPrimary: ownMovies.length === 0,
       createdAt: Date.now(),
-    });
+    };
+    const runtime = normalizeRuntimeMinutes(pendingMovie.runtime);
+    if (runtime) movieData.runtime = runtime;
+    await push(ref(db, 'movies'), movieData);
     elements.results.replaceChildren();
     elements.movieQuery.value = '';
     clearPendingMovie();
@@ -2836,7 +2970,10 @@ async function drawMovie() {
   try {
     const { key: movieKey, ...pickedMovie } = pickDrawMovie(list);
     const selected = { ...pickedMovie, movieKey, drawnAt: Date.now(), isTestDraw: keepSelectionOnDraw };
+    const runtimeRequest = fetchMovieRuntime(selected).catch(() => null);
     await playDrawAnimation(list, selected);
+    const runtime = await runtimeRequest;
+    if (runtime) selected.runtime = runtime;
     const historyEntry = push(ref(db, 'draw/history'));
     const changes = {
       'draw/current': selected,
