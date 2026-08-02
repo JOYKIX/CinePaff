@@ -26,7 +26,6 @@ const ratingFormatter = new Intl.NumberFormat('fr-FR', {
 const elements = {
   authPage: document.querySelector('#authPage'),
   appPage: document.querySelector('#appPage'),
-  appHeader: document.querySelector('.app-header'),
   authForm: document.querySelector('#authForm'),
   identifier: document.querySelector('#identifier'),
   password: document.querySelector('#password'),
@@ -36,11 +35,10 @@ const elements = {
   authToggle: document.querySelector('#authToggle'),
   currentUser: document.querySelector('#currentUser'),
   sessionAvatar: document.querySelector('.session__avatar'),
+  tabProfileAvatar: document.querySelector('.tab__profile-avatar'),
   sessionProfileButton: document.querySelector('#sessionProfileButton'),
   profileAvatar: document.querySelector('.profile-card__avatar'),
   logoutButton: document.querySelector('#logoutButton'),
-  menuToggle: document.querySelector('#menuToggle'),
-  navRow: document.querySelector('#primaryNav'),
   searchForm: document.querySelector('#searchForm'),
   movieQuery: document.querySelector('#movieQuery'),
   message: document.querySelector('#message'),
@@ -173,6 +171,7 @@ const elements = {
   profileAvatarInput: document.querySelector('#profileAvatarInput'),
   profileAvatarRemove: document.querySelector('#profileAvatarRemove'),
   profilePasswordOpen: document.querySelector('#profilePasswordOpen'),
+  profileLogoutButton: document.querySelector('#profileLogoutButton'),
   profileDeleteAccount: document.querySelector('#profileDeleteAccount'),
   profileSeenCount: document.querySelector('#profileSeenCount'),
   profileAvailabilityCount: document.querySelector('#profileAvailabilityCount'),
@@ -531,21 +530,6 @@ function goHome() {
   window.location.hash = 'home';
 }
 
-function setMobileMenu(open) {
-  elements.appHeader.classList.toggle('menu-open', open);
-  document.body.classList.toggle('menu-lock', open);
-  elements.menuToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-  elements.menuToggle.setAttribute('aria-label', open ? 'Fermer le menu' : 'Ouvrir le menu');
-  elements.menuToggle.querySelector('.menu-toggle__label').textContent = open ? 'Fermer' : 'Menu';
-  if (open) {
-    window.setTimeout(() => {
-      elements.navRow.querySelector('.tab:not(.hidden), #logoutButton')?.focus();
-    }, 0);
-  } else if (elements.navRow.contains(document.activeElement)) {
-    elements.menuToggle.focus();
-  }
-}
-
 function setKeepSelectionOnDraw(enabled) {
   keepSelectionOnDraw = enabled;
   elements.drawKeepSelectionToggle.classList.toggle('is-on', keepSelectionOnDraw);
@@ -598,7 +582,6 @@ function setRoute(nextRoute) {
   });
   document.body.dataset.route = route;
   document.title = `${routeConfig[route].label} — CinePaff`;
-  setMobileMenu(false);
   if (previousRoute !== route) window.scrollTo({ top: 0, behavior: 'auto' });
 }
 
@@ -667,6 +650,9 @@ function renderUserAvatars() {
   elements.sessionAvatar.textContent = avatarDataUrl ? '' : initials;
   elements.sessionAvatar.style.backgroundImage = avatarDataUrl ? `url("${avatarDataUrl}")` : '';
   elements.sessionAvatar.classList.toggle('has-image', Boolean(avatarDataUrl));
+  elements.tabProfileAvatar.textContent = avatarDataUrl ? '' : initials;
+  elements.tabProfileAvatar.style.backgroundImage = avatarDataUrl ? `url("${avatarDataUrl}")` : '';
+  elements.tabProfileAvatar.classList.toggle('has-image', Boolean(avatarDataUrl));
   elements.profileAvatar.dataset.initials = initials;
   elements.profileAvatar.style.backgroundImage = avatarDataUrl ? `url("${avatarDataUrl}")` : '';
   elements.profileAvatar.classList.toggle('has-image', Boolean(avatarDataUrl));
@@ -1602,7 +1588,6 @@ async function deleteCurrentAccount() {
 
     await update(ref(db), changes);
     closeDeleteConfirmModal();
-    setMobileMenu(false);
     clearStoredUser();
     currentUser = null;
     elements.authForm.reset();
@@ -2845,17 +2830,10 @@ elements.authToggle.addEventListener('click', () => {
   elements.authToggle.textContent = authMode === 'login' ? 'Créer un compte' : 'Connexion';
   elements.password.autocomplete = authMode === 'login' ? 'current-password' : 'new-password';
 });
-elements.menuToggle.addEventListener('click', () => {
-  const isOpen = elements.menuToggle.getAttribute('aria-expanded') === 'true';
-  setMobileMenu(!isOpen);
-});
 elements.drawKeepSelectionToggle.addEventListener('click', () => {
   setKeepSelectionOnDraw(!keepSelectionOnDraw);
 });
 elements.adminUserSearch.addEventListener('input', renderUsers);
-elements.navRow.addEventListener('click', (event) => {
-  if (event.target === elements.navRow) setMobileMenu(false);
-});
 elements.tabs.forEach((tab) => {
   tab.addEventListener('click', () => {
     const nextRoute = tab.dataset.route;
@@ -2873,16 +2851,15 @@ elements.profileShortcuts.forEach((shortcut) => {
   });
 });
 window.addEventListener('hashchange', syncRouteFromHash);
-window.matchMedia('(max-width: 820px), (max-width: 900px) and (max-height: 500px)').addEventListener('change', (event) => {
-  if (!event.matches) setMobileMenu(false);
-});
 
-elements.logoutButton.addEventListener('click', () => {
-  setMobileMenu(false);
+function logoutCurrentUser() {
   clearStoredUser();
   currentUser = null;
   render();
-});
+}
+
+elements.logoutButton.addEventListener('click', logoutCurrentUser);
+elements.profileLogoutButton.addEventListener('click', logoutCurrentUser);
 elements.searchForm.addEventListener('submit', searchMovies);
 elements.movieQuery.addEventListener('input', scheduleMovieSearch);
 elements.profileIdForm.addEventListener('submit', updateProfileId);
@@ -2993,10 +2970,6 @@ window.addEventListener('keydown', (event) => {
   }
   if (event.key === 'Escape' && !elements.passwordModal.classList.contains('hidden')) {
     closePasswordModal();
-    return;
-  }
-  if (event.key === 'Escape' && elements.menuToggle.getAttribute('aria-expanded') === 'true') {
-    setMobileMenu(false);
     return;
   }
   if (event.key === 'Escape' && !elements.deleteHistoryModal.classList.contains('hidden')) {
