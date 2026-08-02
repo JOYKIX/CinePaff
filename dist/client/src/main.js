@@ -660,7 +660,7 @@ function canProposeMovie() {
 }
 
 function renderUserAvatars() {
-  const initials = currentUser.id.slice(0, 2).toUpperCase();
+  const initials = currentUser.id.slice(0, 2).toLowerCase();
   const avatarDataUrl = users[currentUser.id]?.avatarDataUrl || '';
   elements.sessionAvatar.textContent = avatarDataUrl ? '' : initials;
   elements.sessionAvatar.style.backgroundImage = avatarDataUrl ? `url("${avatarDataUrl}")` : '';
@@ -1177,7 +1177,7 @@ function createMovieComment(comment) {
   const avatar = document.createElement('span');
   avatar.className = 'movie-comment__avatar';
   const avatarDataUrl = users[comment.authorId]?.avatarDataUrl || '';
-  avatar.textContent = avatarDataUrl ? '' : comment.authorId.slice(0, 2).toUpperCase();
+  avatar.textContent = avatarDataUrl ? '' : comment.authorId.slice(0, 2).toLowerCase();
   avatar.style.backgroundImage = avatarDataUrl ? `url("${avatarDataUrl}")` : '';
 
   const body = document.createElement('div');
@@ -1766,7 +1766,7 @@ function createInitialAvatar(userId, compact = false) {
   const avatar = document.createElement('span');
   avatar.className = `availability-avatar${compact ? ' availability-avatar--compact' : ''}`;
   const avatarDataUrl = account?.avatarDataUrl || '';
-  avatar.textContent = avatarDataUrl ? '' : normalizedUserId.slice(0, 2);
+  avatar.textContent = avatarDataUrl ? '' : normalizedUserId.slice(0, 2).toLowerCase();
   avatar.style.backgroundImage = avatarDataUrl ? `url("${avatarDataUrl}")` : '';
   avatar.classList.toggle('has-image', Boolean(avatarDataUrl));
   avatar.title = accountKey || userId;

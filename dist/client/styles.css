@@ -847,10 +847,11 @@
     display: grid;
     place-items: center;
     border-radius: 50%;
-    color: var(--black);
-    background: var(--gold);
+    color: #090a18;
+    background: #dfff5f;
+    font-family: var(--font-display);
     font-size: 0.68rem;
-    font-weight: 900;
+    font-weight: 700;
     background-position: center;
     background-size: cover;
   }
@@ -1784,12 +1785,13 @@
     height: 25px;
     display: grid;
     place-items: center;
-    border: 1px solid rgba(139, 92, 246, 0.28);
+    border: 1px solid rgba(9, 10, 24, 0.38);
     border-radius: 50%;
-    color: var(--violet-light);
-    background: var(--black-soft);
+    color: #090a18;
+    background: #dfff5f;
+    font-family: var(--font-display);
     font-size: 0.5rem;
-    font-weight: 900;
+    font-weight: 700;
     background-position: center;
     background-size: cover;
   }
@@ -1803,8 +1805,8 @@
     width: 24px;
     height: 24px;
     border-color: var(--black);
-    color: var(--black);
-    background-color: var(--gold);
+    color: #090a18;
+    background-color: #dfff5f;
   }
 
   .availability-avatar--compact.has-image {
@@ -2359,8 +2361,8 @@
   .profile-card__avatar {
     width: clamp(82px, 8vw, 108px);
     height: clamp(82px, 8vw, 108px);
-    color: var(--black);
-    background-color: var(--gold);
+    color: #090a18;
+    background-color: #dfff5f;
     font-family: var(--font-display);
     font-size: clamp(1.4rem, 3vw, 2.4rem);
     position: relative;
@@ -3007,12 +3009,13 @@
     display: grid;
     place-items: center;
     border-radius: 50%;
-    color: var(--black);
-    background-color: var(--gold);
+    color: #090a18;
+    background-color: #dfff5f;
     background-position: center;
     background-size: cover;
+    font-family: var(--font-display);
     font-size: 0.55rem;
-    font-weight: 900;
+    font-weight: 700;
   }
 
   .movie-comment > div {
