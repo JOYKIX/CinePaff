@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#090a18" />
+    <meta name="description" content="CinePaff — le film de votre prochaine soirée." />
+    <title>CinePaff</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@500;600;700&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,300..600,0..1,-25..0&display=swap"
+    />
+    <link rel="stylesheet" href="./styles.css?v=cinepaff-v2-18" />
+    <link rel="icon" href="./image/logocinepafficon.svg?v=1" type="image/svg+xml" />
+  </head>
+  <body>
+    <div class="ambient" aria-hidden="true"><span></span><span></span></div>
+
+    <main class="auth-page" id="authPage">
+      <section class="auth-shell" aria-label="Authentification CinePaff">
+        <div class="auth-brand">
+          <span class="brand-lockup" role="img" aria-label="CinePaff">
+            <img class="brand-lockup__icon" src="./image/logocinepafficon.svg" alt="" />
+            <span class="brand-lockup__wordmark" data-brand-wordmark aria-hidden="true">
+              <span class="brand-lockup__fallback"><span>Cine</span><strong>Paff</strong></span>
+            </span>
+          </span>
+        </div>
+
+        <div class="auth-statement" aria-label="Regardez Initial D">
+          <span>Regardez</span>
+          <strong>Initial D</strong>
+        </div>
+
+        <div class="auth-access">
+          <form id="authForm" class="auth-form">
+            <label class="field">
+              <span>Identifiant</span>
+              <input id="identifier" placeholder="TON ID" autocomplete="username" aria-label="Identifiant" />
+            </label>
+            <label class="field">
+              <span>Mot de passe</span>
+              <input id="password" placeholder="••••••••" type="password" autocomplete="current-password" aria-label="Mot de passe" />
+            </label>
+            <p class="form-error" id="authError" role="alert"></p>
+            <button class="button button--primary auth-submit" id="authSubmit" type="submit">
+              <span id="authSubmitLabel">Connexion</span>
+              <span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>
+            </button>
+          </form>
+          <button class="text-action" id="authToggle" type="button">Créer un compte</button>
+        </div>
+
+      </section>
+    </main>
+
+    <main class="app-page hidden" id="appPage">
+      <header class="app-header">
+        <div class="header-inner">
+          <a class="app-brand" href="#home" aria-label="CinePaff — Sélection">
+            <span class="brand-lockup" aria-hidden="true">
+              <img class="brand-lockup__icon" src="./image/logocinepafficon.svg" alt="" />
+              <span class="brand-lockup__wordmark" data-brand-wordmark>
+                <span class="brand-lockup__fallback"><span>Cine</span><strong>Paff</strong></span>
+              </span>
+            </span>
+          </a>
+
+          <button class="menu-toggle" id="menuToggle" type="button" aria-expanded="false" aria-controls="primaryNav" aria-label="Ouvrir le menu">
+            <span class="menu-toggle__label">Menu</span>
+            <span class="menu-toggle__glyph" aria-hidden="true"><i></i><i></i></span>
+          </button>
+
+          <div class="nav-row" id="primaryNav">
+            <nav class="tabs" aria-label="Navigation principale">
+              <button class="tab active" type="button" data-route="home">
+                <span class="material-symbols-rounded" aria-hidden="true">movie_filter</span>
+                <span>Sélection</span>
+              </button>
+              <button class="tab" type="button" data-route="availability">
+                <span class="material-symbols-rounded" aria-hidden="true">calendar_month</span>
+                <span>Disponibilités</span>
+              </button>
+              <button class="tab draw-only hidden" type="button" data-route="draws">
+                <span class="material-symbols-rounded" aria-hidden="true">casino</span>
+                <span>Tirage</span>
+              </button>
+              <button class="tab" type="button" data-route="seen">
+                <span class="material-symbols-rounded" aria-hidden="true">history</span>
+                <span>Historique</span>
+              </button>
+              <button class="tab tab--profile" type="button" data-route="profile">
+                <span class="material-symbols-rounded" aria-hidden="true">person</span>
+                <span>Profil</span>
+              </button>
+            </nav>
+
+            <div class="session">
+              <span class="session__avatar" aria-hidden="true"></span>
+              <span class="session__identity">
+                <small>Connecté</small>
+                <strong id="currentUser"></strong>
+              </span>
+              <button id="logoutButton" class="icon-action" type="button" aria-label="Déconnexion" title="Déconnexion">
+                <span class="material-symbols-rounded" aria-hidden="true">logout</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <p class="app-status" id="message" role="status" aria-live="polite"></p>
+
+      <div class="workspace">
+        <section class="view" id="homeView" data-view="home">
+          <header class="view-head view-head--selection">
+            <div>
+              <h2>La sélection</h2>
+            </div>
+            <section class="selection-spotlight hidden" id="currentPick" aria-label="Film actuellement tiré">
+              <div class="now-playing__poster" id="currentPickPoster"></div>
+              <div class="now-playing__content">
+                <span class="live-label"><i></i> À regarder</span>
+                <strong id="currentPickTitle"></strong>
+                <small id="currentPickUser"></small>
+              </div>
+              <a class="now-playing__link" href="#availability">
+                <span>Choisir une date</span>
+                <span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span>
+              </a>
+            </section>
+          </header>
+
+          <div class="selection-layout">
+            <aside class="proposal-zone">
+              <div class="section-intro">
+                <span class="section-number">01</span>
+                <div>
+                  <h3>Tes films</h3>
+                  <p class="proposal-status" id="proposalStatus"></p>
+                </div>
+              </div>
+
+              <form class="search" id="searchForm">
+                <span class="material-symbols-rounded search__icon" aria-hidden="true">search</span>
+                <input id="movieQuery" placeholder="Rechercher un film" aria-label="Rechercher un film" autocomplete="off" />
+              </form>
+
+              <div class="proposal-preview hidden" id="proposalPreview"></div>
+              <div class="results" id="results" aria-live="polite"></div>
+
+              <section class="pending-movie hidden" id="pendingMoviePanel" aria-label="Film sélectionné">
+                <div class="pending-movie__top">
+                  <div class="pending-movie__poster" id="pendingMoviePoster"></div>
+                  <div class="pending-movie__meta">
+                    <span>Proposition</span>
+                    <strong id="pendingMovieTitle"></strong>
+                    <small id="pendingMovieMeta"></small>
+                  </div>
+                </div>
+                <div class="warning-picker">
+                  <div class="warning-picker__head">
+                    <span class="material-symbols-rounded" aria-hidden="true">warning</span>
+                    <span>Warnings</span>
+                  </div>
+                  <div class="warning-switches" id="warningList"></div>
+                </div>
+                <div class="pending-movie__actions">
+                  <button class="button button--quiet" id="cancelMovieSelection" type="button">Annuler</button>
+                  <button class="button button--primary" id="confirmMovieSelection" type="button">
+                    <span>Ajouter</span>
+                    <span class="material-symbols-rounded" aria-hidden="true">add</span>
+                  </button>
+                </div>
+              </section>
+            </aside>
+
+            <section class="pool-zone">
+              <div class="section-intro section-intro--pool">
+                <span class="section-number">02</span>
+                <h3>En lice</h3>
+                <span class="metric section-intro__metric" id="selectionCount">0 en lice</span>
+              </div>
+              <div class="poster-grid" id="movieList"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view hidden" id="availabilityView" data-view="availability">
+          <header class="view-head view-head--availability">
+            <div>
+              <h2>Disponibilités</h2>
+            </div>
+            <div class="availability-spotlight">
+              <span>Meilleur créneau</span>
+              <strong id="availabilityBestSlot">À calculer</strong>
+              <div>
+                <span id="availabilityBestCoverage">0 disponible</span>
+                <div class="avatar-stack" id="availabilityBestPeople"></div>
+              </div>
+              <small id="availabilityRuntime">Durée inconnue</small>
+            </div>
+          </header>
+
+          <div class="availability-layout">
+            <section class="availability-editor">
+              <div class="section-intro">
+                <span class="section-number">01</span>
+                <div>
+                  <h3>Quand es-tu libre ?</h3>
+                </div>
+              </div>
+
+              <form class="availability-form" id="availabilityForm">
+                <div class="availability-presets" aria-label="Raccourcis">
+                  <button type="button" data-availability-preset="evenings">
+                    <span class="material-symbols-rounded" aria-hidden="true">dark_mode</span>
+                    Soirs
+                  </button>
+                  <button type="button" data-availability-preset="weekend">
+                    <span class="material-symbols-rounded" aria-hidden="true">weekend</span>
+                    Week-end
+                  </button>
+                  <button type="button" data-availability-preset="tonight">
+                    <span class="material-symbols-rounded" aria-hidden="true">today</span>
+                    Ce soir
+                  </button>
+                </div>
+
+                <div class="segmented" aria-label="Type de disponibilité">
+                  <button class="segment is-on" id="availabilityRecurringMode" type="button" aria-pressed="true">
+                    <span class="material-symbols-rounded" aria-hidden="true">event_repeat</span>
+                    Récurrent
+                  </button>
+                  <button class="segment" id="availabilityDateMode" type="button" aria-pressed="false">
+                    <span class="material-symbols-rounded" aria-hidden="true">event</span>
+                    Date précise
+                  </button>
+                </div>
+
+                <label class="field hidden" id="availabilityDateField">
+                  <span>Date</span>
+                  <input id="availabilityDate" type="date" aria-label="Date précise" />
+                </label>
+
+                <div class="day-picker" id="availabilityDayPicker" aria-label="Jours récurrents"></div>
+
+                <div class="time-row">
+                  <label class="field">
+                    <span>De</span>
+                    <input id="availabilityStart" type="time" value="20:00" aria-label="Heure de début" />
+                  </label>
+                  <span class="time-row__separator" aria-hidden="true">→</span>
+                  <label class="field">
+                    <span>À</span>
+                    <input id="availabilityEnd" type="time" value="23:30" aria-label="Heure de fin" />
+                  </label>
+                </div>
+
+                <button class="line-toggle" id="availabilityAllDay" type="button" aria-pressed="false">
+                  <span class="material-symbols-rounded" aria-hidden="true">wb_sunny</span>
+                  <span>Toute la journée</span>
+                  <i aria-hidden="true"><span></span></i>
+                </button>
+
+                <button class="button button--primary button--wide" type="submit">
+                  <span>Ajouter la disponibilité</span>
+                  <span class="material-symbols-rounded" aria-hidden="true">add</span>
+                </button>
+              </form>
+
+              <div class="my-availability">
+                <div class="my-availability__head">
+                  <span>Mes créneaux</span>
+                  <small id="availabilityOwnCount">0</small>
+                </div>
+                <div class="availability-list" id="availabilityList"></div>
+              </div>
+            </section>
+
+            <section class="availability-overview">
+              <div class="section-intro">
+                <span class="section-number">02</span>
+                <div>
+                  <h3>Le meilleur moment</h3>
+                </div>
+              </div>
+              <div class="availability-roster" id="availabilityRoster" aria-label="Disponibilités du groupe"></div>
+              <div class="availability-recommendations" id="availabilityRecommendations"></div>
+
+              <div class="calendar-head">
+                <div>
+                  <span>Planning collectif</span>
+                  <small>24 h · premier clic : début · deuxième clic : fin</small>
+                </div>
+                <div class="calendar-head__tools">
+                  <div class="schedule-jumps" aria-label="Aller à une période de la journée">
+                    <button type="button" data-schedule-jump="0">Nuit</button>
+                    <button type="button" data-schedule-jump="6">Matin</button>
+                    <button type="button" data-schedule-jump="12">Après-midi</button>
+                    <button type="button" data-schedule-jump="18">Soir</button>
+                  </div>
+                  <div class="heat-legend" aria-hidden="true">
+                    <span>Peu</span><i></i><i></i><i></i><i></i><span>Beaucoup</span>
+                  </div>
+                </div>
+              </div>
+              <div class="calendar-selection" aria-live="polite">
+                <span class="material-symbols-rounded" aria-hidden="true">touch_app</span>
+                <strong id="availabilityCalendarSelectionText">Choisis une heure de départ, puis une heure de fin.</strong>
+                <button class="hidden" id="availabilityCalendarClear" type="button">Effacer</button>
+              </div>
+              <div class="availability-calendar-shell" id="availabilityCalendarShell">
+                <div class="availability-calendar" id="availabilityCalendar"></div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view hidden" id="drawsView" data-view="draws">
+          <header class="view-head view-head--draw">
+            <div>
+              <h2>Le tirage</h2>
+            </div>
+            <div class="draw-controls">
+              <span class="metric" id="drawPoolCount">0 film</span>
+              <button class="line-toggle line-toggle--compact" id="drawKeepSelectionToggle" type="button" aria-pressed="false">
+                <span>Mode test</span>
+                <i aria-hidden="true"><span></span></i>
+              </button>
+              <button class="button button--primary draw-button" id="drawButton" type="button">
+                <span class="material-symbols-rounded" aria-hidden="true">play_arrow</span>
+                <span id="drawButtonLabel">Lancer</span>
+              </button>
+            </div>
+          </header>
+
+          <section class="draw-panel" id="adminPanel">
+            <div class="draw-stage" id="drawStage" aria-live="polite">
+              <div class="draw-stage__topline">
+                <span>Tirage CinePaff</span>
+                <span id="drawStatus">PRÊT</span>
+              </div>
+              <div class="draw-fx" aria-hidden="true">
+                <div class="draw-orbit draw-orbit--outer"></div>
+                <div class="draw-orbit draw-orbit--inner"></div>
+                <div class="draw-countdown" id="drawCountdown"></div>
+                <div class="draw-burst" id="drawBurst"></div>
+              </div>
+              <div class="draw-core" id="drawCore" aria-hidden="true"><span></span><i></i></div>
+              <div class="cover-window">
+                <div class="cover-stack" id="coverStack"></div>
+              </div>
+              <div class="draw-curtain" aria-hidden="true"></div>
+              <div class="winner hidden" id="winnerCard">
+                <div class="winner-poster" id="winnerPoster"></div>
+                <div class="winner-copy">
+                  <span class="kicker">Ce soir</span>
+                  <strong id="winnerTitle"></strong>
+                  <small id="winnerUser"></small>
+                </div>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <section class="view hidden" id="seenView" data-view="seen">
+          <header class="view-head">
+            <div>
+              <h2>Historique</h2>
+            </div>
+            <span class="metric" id="seenCount">0 film</span>
+          </header>
+          <div class="seen-grid" id="seenList"></div>
+        </section>
+
+        <section class="view hidden" id="profileView" data-view="profile">
+          <header class="view-head">
+            <div>
+              <h2>Profil</h2>
+            </div>
+          </header>
+
+          <div class="profile-layout">
+            <section class="profile-overview">
+              <div class="profile-hero">
+                <div class="profile-identity">
+                  <button class="profile-card__avatar" id="profileAvatarButton" type="button" aria-label="Modifier la photo de profil" title="Modifier la photo">
+                    <span class="material-symbols-rounded" aria-hidden="true">photo_camera</span>
+                  </button>
+                  <input class="hidden" id="profileAvatarInput" type="file" accept="image/jpeg,image/png,image/webp" />
+                  <div class="profile-details" id="profileDetails">
+                    <span>Compte CinePaff</span>
+                    <strong id="profileName"></strong>
+                    <small id="profileRole"></small>
+                  </div>
+                </div>
+
+                <div class="profile-stats" aria-label="Résumé du profil">
+                  <div>
+                    <strong id="profileSeenCount">0</strong>
+                    <span>Films vus</span>
+                  </div>
+                  <div>
+                    <strong id="profileAvailabilityCount">0</strong>
+                    <span>Créneaux</span>
+                  </div>
+                  <div>
+                    <strong id="profileProposalState">—</strong>
+                    <span>Proposition</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="profile-panels">
+                <section class="profile-panel" aria-labelledby="profileAccountTitle">
+                  <div class="profile-panel__head">
+                    <span class="material-symbols-rounded" aria-hidden="true">manage_accounts</span>
+                    <h3 id="profileAccountTitle">Compte</h3>
+                  </div>
+
+                  <form class="profile-id-form" id="profileIdForm">
+                    <label class="field">
+                      <span>Pseudo / ID</span>
+                      <input id="profileIdInput" maxlength="24" autocomplete="username" aria-label="Nouveau pseudo ou identifiant" />
+                    </label>
+                    <button class="button button--primary" id="profileIdSubmit" type="submit">
+                      <span>Enregistrer</span>
+                      <span class="material-symbols-rounded" aria-hidden="true">check</span>
+                    </button>
+                  </form>
+
+                  <div class="profile-actions">
+                    <button class="profile-action" id="profilePasswordOpen" type="button">
+                      <span class="material-symbols-rounded" aria-hidden="true">key</span>
+                      <span>Changer le mot de passe</span>
+                      <span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>
+                    </button>
+                    <button class="profile-action profile-action--danger hidden" id="profileAvatarRemove" type="button">
+                      <span class="material-symbols-rounded" aria-hidden="true">no_photography</span>
+                      <span>Supprimer la photo</span>
+                      <span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>
+                    </button>
+                  </div>
+                </section>
+
+                <section class="profile-panel" aria-labelledby="profileLinksTitle">
+                  <div class="profile-panel__head">
+                    <span class="material-symbols-rounded" aria-hidden="true">bolt</span>
+                    <h3 id="profileLinksTitle">Accès rapide</h3>
+                  </div>
+                  <nav class="profile-shortcuts" aria-label="Raccourcis du profil">
+                    <button type="button" data-profile-route="home">
+                      <span class="material-symbols-rounded" aria-hidden="true">movie_filter</span>
+                      <span>Ma proposition</span>
+                      <span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>
+                    </button>
+                    <button type="button" data-profile-route="availability">
+                      <span class="material-symbols-rounded" aria-hidden="true">calendar_month</span>
+                      <span>Mes disponibilités</span>
+                      <span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>
+                    </button>
+                    <button type="button" data-profile-route="seen">
+                      <span class="material-symbols-rounded" aria-hidden="true">history</span>
+                      <span>Mes notes</span>
+                      <span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>
+                    </button>
+                  </nav>
+                </section>
+              </div>
+
+              <div class="profile-danger">
+                <div>
+                  <span class="material-symbols-rounded" aria-hidden="true">warning</span>
+                  <span>Zone sensible</span>
+                </div>
+                <button id="profileDeleteAccount" type="button">
+                  <span>Supprimer mon compte</span>
+                  <span class="material-symbols-rounded" aria-hidden="true">arrow_forward</span>
+                </button>
+              </div>
+            </section>
+
+            <section class="profile-admin admin-only hidden" id="profileAdminTools" aria-label="Gestion des utilisateurs">
+              <div class="section-intro">
+                <span class="section-number">Admin</span>
+                <h3>Utilisateurs</h3>
+              </div>
+              <label class="admin-search">
+                <span class="material-symbols-rounded" aria-hidden="true">search</span>
+                <input id="adminUserSearch" placeholder="Rechercher" aria-label="Rechercher un utilisateur" />
+              </label>
+              <div class="user-admin-list" id="userList"></div>
+            </section>
+          </div>
+        </section>
+      </div>
+
+      <div class="rating-modal hidden" id="ratingModal" role="dialog" aria-modal="true" aria-labelledby="ratingModalTitle">
+        <button class="modal-backdrop" id="ratingModalBackdrop" type="button" aria-label="Fermer"></button>
+        <section class="rating-modal__panel">
+          <button class="modal-close" id="ratingModalClose" type="button" aria-label="Fermer">
+            <span class="material-symbols-rounded" aria-hidden="true">close</span>
+          </button>
+          <div class="rating-modal__content">
+            <div class="rating-modal__poster" id="ratingModalPoster"></div>
+            <div class="rating-modal__meta">
+              <span class="kicker">Fiche film</span>
+              <h2 id="ratingModalTitle"></h2>
+              <div class="movie-facts" id="ratingModalFacts"></div>
+              <p class="rating-modal__overview" id="ratingModalOverview"></p>
+              <div class="rating-modal__credits" id="ratingModalCredits"></div>
+              <div class="rating-modal__footer">
+                <a class="external-link hidden" id="ratingModalImdb" href="#" target="_blank" rel="noreferrer">
+                  IMDb <span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span>
+                </a>
+                <small id="ratingModalAverage"></small>
+                <div class="rating rating--modal" id="ratingModalStars"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="app-modal hidden" id="warningModal" role="dialog" aria-modal="true" aria-labelledby="warningModalTitle">
+        <button class="modal-backdrop" id="warningModalBackdrop" type="button" aria-label="Fermer"></button>
+        <section class="app-modal__panel">
+          <button class="modal-close" id="warningModalClose" type="button" aria-label="Fermer">
+            <span class="material-symbols-rounded" aria-hidden="true">close</span>
+          </button>
+          <span class="material-symbols-rounded app-modal__icon app-modal__icon--warning" aria-hidden="true">warning</span>
+          <span class="kicker">Avant de regarder</span>
+          <h2 id="warningModalTitle">Warnings</h2>
+          <p id="warningModalIntro"></p>
+          <div class="warning-modal-list" id="warningModalList"></div>
+        </section>
+      </div>
+
+      <div class="app-modal hidden" id="deleteHistoryModal" role="dialog" aria-modal="true" aria-labelledby="deleteHistoryTitle">
+        <button class="modal-backdrop" id="deleteHistoryBackdrop" type="button" aria-label="Annuler"></button>
+        <section class="app-modal__panel app-modal__panel--compact">
+          <button class="modal-close" id="deleteHistoryClose" type="button" aria-label="Annuler">
+            <span class="material-symbols-rounded" aria-hidden="true">close</span>
+          </button>
+          <span class="material-symbols-rounded app-modal__icon app-modal__icon--danger" aria-hidden="true">delete</span>
+          <span class="kicker">Confirmation</span>
+          <h2 id="deleteHistoryTitle">Supprimer de l’historique</h2>
+          <p id="deleteHistoryText"></p>
+          <div class="app-modal__actions">
+            <button class="button button--quiet" id="deleteHistoryCancel" type="button">Annuler</button>
+            <button class="button button--danger" id="deleteHistoryConfirm" type="button">
+              <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+              <span id="deleteHistoryConfirmLabel">Supprimer</span>
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <div class="app-modal hidden" id="passwordModal" role="dialog" aria-modal="true" aria-labelledby="passwordModalTitle">
+        <button class="modal-backdrop" id="passwordModalBackdrop" type="button" aria-label="Annuler"></button>
+        <section class="app-modal__panel app-modal__panel--compact">
+          <button class="modal-close" id="passwordModalClose" type="button" aria-label="Annuler">
+            <span class="material-symbols-rounded" aria-hidden="true">close</span>
+          </button>
+          <span class="kicker">Sécurité</span>
+          <h2 id="passwordModalTitle">Mot de passe</h2>
+          <form class="password-form" id="profilePasswordForm">
+            <label class="field">
+              <span>Mot de passe actuel</span>
+              <input id="profileCurrentPassword" type="password" maxlength="128" autocomplete="current-password" required />
+            </label>
+            <label class="field">
+              <span>Nouveau mot de passe</span>
+              <input id="profileNewPassword" type="password" minlength="6" maxlength="128" autocomplete="new-password" required />
+            </label>
+            <label class="field">
+              <span>Confirmer</span>
+              <input id="profileConfirmPassword" type="password" minlength="6" maxlength="128" autocomplete="new-password" required />
+            </label>
+            <p class="form-error" id="profilePasswordError" role="alert"></p>
+            <div class="app-modal__actions">
+              <button class="button button--quiet" id="passwordModalCancel" type="button">Annuler</button>
+              <button class="button button--primary" id="profilePasswordSubmit" type="submit">
+                <span>Enregistrer</span>
+                <span class="material-symbols-rounded" aria-hidden="true">check</span>
+              </button>
+            </div>
+          </form>
+        </section>
+      </div>
+
+      <div class="app-modal avatar-crop-modal hidden" id="avatarCropModal" role="dialog" aria-modal="true" aria-labelledby="avatarCropTitle">
+        <button class="modal-backdrop" id="avatarCropBackdrop" type="button" aria-label="Annuler"></button>
+        <section class="app-modal__panel avatar-crop-panel">
+          <button class="modal-close" id="avatarCropClose" type="button" aria-label="Annuler">
+            <span class="material-symbols-rounded" aria-hidden="true">close</span>
+          </button>
+          <span class="kicker">Photo de profil</span>
+          <h2 id="avatarCropTitle">Ajuste le cadrage</h2>
+          <div class="avatar-crop-viewport" id="avatarCropViewport">
+            <canvas id="avatarCropCanvas" width="640" height="640"></canvas>
+            <span aria-hidden="true"></span>
+          </div>
+          <label class="avatar-zoom">
+            <span class="material-symbols-rounded" aria-hidden="true">remove</span>
+            <input id="avatarCropZoom" type="range" min="1" max="3" step="0.01" value="1" aria-label="Zoom de la photo" />
+            <span class="material-symbols-rounded" aria-hidden="true">add</span>
+          </label>
+          <div class="app-modal__actions">
+            <button class="button button--quiet" id="avatarCropCancel" type="button">Annuler</button>
+            <button class="button button--primary" id="avatarCropConfirm" type="button">
+              <span>Utiliser la photo</span>
+              <span class="material-symbols-rounded" aria-hidden="true">check</span>
+            </button>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <script type="module" src="./src/main.js?v=cinepaff-v2-18"></script>
+  </body>
+</html>
