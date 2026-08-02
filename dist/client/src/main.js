@@ -843,7 +843,6 @@ function getMovieSeenUserIds(movie) {
 function createSelectionSeenButton(movie) {
   const viewerIds = getMovieSeenUserIds(movie);
   const isSeenByCurrentUser = viewerIds.includes(currentUser?.id);
-  const groupSize = Math.max(Object.keys(users).length, viewerIds.length, 1);
   const button = document.createElement('button');
   button.className = `selection-seen-button${isSeenByCurrentUser ? ' is-seen' : ''}`;
   button.type = 'button';
@@ -852,11 +851,11 @@ function createSelectionSeenButton(movie) {
     ? `Retirer mon signal déjà vu pour ${movie.title}`
     : `Marquer ${movie.title} comme déjà vu`);
   button.title = viewerIds.length
-    ? `Déjà vu par ${viewerIds.length}/${groupSize} : ${viewerIds.join(', ')}`
+    ? `Déjà vu par ${viewerIds.length} personne${viewerIds.length > 1 ? 's' : ''} : ${viewerIds.join(', ')}`
     : `Personne n’a encore marqué ${movie.title} comme déjà vu`;
 
   const count = document.createElement('span');
-  count.textContent = `${viewerIds.length}/${groupSize}`;
+  count.textContent = String(viewerIds.length);
   count.setAttribute('aria-hidden', 'true');
   button.append(createIcon('visibility'), count);
   button.addEventListener('click', (event) => {
