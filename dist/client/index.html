@@ -12,7 +12,7 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@500;600;700&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,300..600,0..1,-25..0&display=swap"
     />
-    <link rel="stylesheet" href="./styles.css?v=cinepaff-v2-26" />
+    <link rel="stylesheet" href="./styles.css?v=cinepaff-v2-28" />
     <link rel="icon" href="./image/logocinepafficon.svg?v=1" type="image/svg+xml" />
   </head>
   <body>
@@ -513,6 +513,10 @@
               <h2 id="ratingModalTitle"></h2>
               <div class="movie-facts" id="ratingModalFacts"></div>
               <p class="rating-modal__overview" id="ratingModalOverview"></p>
+              <button class="rating-modal__overview-toggle hidden" id="ratingModalOverviewToggle" type="button" aria-expanded="false">
+                <span id="ratingModalOverviewToggleLabel">Afficher la suite</span>
+                <span class="material-symbols-rounded" aria-hidden="true">expand_more</span>
+              </button>
               <div class="rating-modal__credits" id="ratingModalCredits"></div>
               <div class="rating-modal__footer">
                 <a class="external-link hidden" id="ratingModalImdb" href="#" target="_blank" rel="noreferrer">
@@ -524,7 +528,12 @@
           <section class="rating-modal__community hidden" id="ratingModalCommunity" aria-label="Avis du groupe">
             <div class="rating-modal__rating-summary">
               <span class="kicker">Avis du groupe</span>
-              <strong id="ratingModalAverage"></strong>
+              <div class="rating-modal__score">
+                <strong id="ratingModalAverage">—</strong>
+                <span>/5</span>
+              </div>
+              <small id="ratingModalRatingCount">Aucune note</small>
+              <span class="rating-modal__your-rating">Ta note</span>
               <div class="rating rating--modal" id="ratingModalStars"></div>
             </div>
             <section class="movie-comments" id="ratingModalComments" aria-label="Commentaires">
@@ -649,6 +658,6 @@
       </div>
     </main>
 
-    <script type="module" src="./src/main.js?v=cinepaff-v2-26"></script>
+    <script type="module" src="./src/main.js?v=cinepaff-v2-28"></script>
   </body>
 </html>

@@ -89,9 +89,12 @@ const elements = {
   ratingModalTitle: document.querySelector('#ratingModalTitle'),
   ratingModalFacts: document.querySelector('#ratingModalFacts'),
   ratingModalOverview: document.querySelector('#ratingModalOverview'),
+  ratingModalOverviewToggle: document.querySelector('#ratingModalOverviewToggle'),
+  ratingModalOverviewToggleLabel: document.querySelector('#ratingModalOverviewToggleLabel'),
   ratingModalCredits: document.querySelector('#ratingModalCredits'),
   ratingModalImdb: document.querySelector('#ratingModalImdb'),
   ratingModalAverage: document.querySelector('#ratingModalAverage'),
+  ratingModalRatingCount: document.querySelector('#ratingModalRatingCount'),
   ratingModalAttribution: document.querySelector('#ratingModalAttribution'),
   ratingModalCommunity: document.querySelector('#ratingModalCommunity'),
   ratingModalPoster: document.querySelector('#ratingModalPoster'),
@@ -190,6 +193,7 @@ let ratedMovieKey = '';
 let keepSelectionOnDraw = false;
 let movieDetailsRequestId = 0;
 let activeMovieDetailsKey = '';
+let movieOverviewExpanded = false;
 let pendingMovie = null;
 let pendingWarnings = new Set();
 let pendingDeleteRequest = null;
@@ -211,6 +215,7 @@ const availabilityStepMinutes = 30;
 const availabilityHorizonDays = 14;
 const defaultMovieRuntimeMinutes = 120;
 const maxMoviesPerUser = 10;
+const movieOverviewPreviewLength = 150;
 const routeConfig = {
   home: { label: 'Sélection' },
   availability: { label: 'Disponibilités' },
@@ -853,6 +858,51 @@ function getCast(details) {
     .join(', ');
 }
 
+function getMovieOverviewPreview(overview) {
+  if (overview.length <= movieOverviewPreviewLength) return overview;
+  const rawPreview = overview.slice(0, movieOverviewPreviewLength - 1).trimEnd();
+  const lastSpace = rawPreview.lastIndexOf(' ');
+  const preview = lastSpace >= Math.floor(movieOverviewPreviewLength * 0.72)
+    ? rawPreview.slice(0, lastSpace)
+    : rawPreview;
+  return `${preview}…`;
+}
+
+function renderMovieOverview(overview, { animate = false } = {}) {
+  const overviewElement = elements.ratingModalOverview;
+  const startHeight = overviewElement.getBoundingClientRect().height;
+  overviewElement.getAnimations().forEach((animation) => animation.cancel());
+  overviewElement.style.height = '';
+  overviewElement.style.overflow = '';
+  const fullOverview = String(overview || 'Synopsis indisponible pour ce film.').trim();
+  const canExpand = fullOverview.length > movieOverviewPreviewLength;
+  overviewElement.dataset.fullText = fullOverview;
+  overviewElement.textContent = canExpand && !movieOverviewExpanded
+    ? getMovieOverviewPreview(fullOverview)
+    : fullOverview;
+  elements.ratingModalOverviewToggle.classList.toggle('hidden', !canExpand);
+  elements.ratingModalOverviewToggle.setAttribute('aria-expanded', movieOverviewExpanded ? 'true' : 'false');
+  elements.ratingModalOverviewToggleLabel.textContent = movieOverviewExpanded ? 'Réduire' : 'Afficher la suite';
+
+  const endHeight = overviewElement.getBoundingClientRect().height;
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (animate && !reducedMotion && Math.abs(endHeight - startHeight) > 1) {
+    overviewElement.style.height = `${startHeight}px`;
+    overviewElement.style.overflow = 'hidden';
+    const animation = overviewElement.animate([
+      { height: `${startHeight}px`, opacity: 0.72 },
+      { height: `${endHeight}px`, opacity: 1 },
+    ], {
+      duration: 320,
+      easing: 'cubic-bezier(0.22, 0.72, 0.16, 1)',
+    });
+    animation.onfinish = () => {
+      overviewElement.style.height = '';
+      overviewElement.style.overflow = '';
+    };
+  }
+}
+
 function renderMovieDetails(movie, details, state = 'ready') {
   const genres = (details?.genres || []).map((genre) => genre.name).filter(Boolean).slice(0, 3).join(', ');
   const facts = [
@@ -868,9 +918,9 @@ function renderMovieDetails(movie, details, state = 'ready') {
   }
 
   elements.ratingModalFacts.replaceChildren(...facts);
-  elements.ratingModalOverview.textContent = state === 'loading'
+  renderMovieOverview(state === 'loading'
     ? 'Chargement des infos du film...'
-    : details?.overview || movie.overview || 'Synopsis indisponible pour ce film.';
+    : details?.overview || movie.overview || 'Synopsis indisponible pour ce film.');
 
   const director = getDirector(details);
   const cast = getCast(details);
@@ -1267,6 +1317,7 @@ function openRatingModal(movie, options = {}) {
   const allowRating = options.allowRating !== false;
   activeSeenMovie = allowRating ? movie : null;
   activeMovieDetailsKey = getMovieDetailsCacheKey(movie);
+  movieOverviewExpanded = false;
   const requestId = ++movieDetailsRequestId;
   elements.ratingModalTitle.textContent = movie.title;
   elements.ratingModalAttribution.textContent = movie.proposedBy ? `Proposé par ${movie.proposedBy}` : '';
@@ -1274,15 +1325,13 @@ function openRatingModal(movie, options = {}) {
   if (allowRating) {
     const averageRating = getAverageRating(movie);
     const ratingCount = getRatingCount(movie);
-    const userRating = getUserRating(movie);
-    const averageLabel = averageRating
-      ? `${averageRating}/5 · ${ratingCount} note${ratingCount > 1 ? 's' : ''}`
-      : 'Pas encore noté';
-    elements.ratingModalAverage.textContent = userRating
-      ? `${averageLabel} · Ta note ${userRating}/5`
-      : averageLabel;
+    elements.ratingModalAverage.textContent = averageRating || '—';
+    elements.ratingModalRatingCount.textContent = ratingCount
+      ? `${ratingCount} note${ratingCount > 1 ? 's' : ''}`
+      : 'Aucune note';
   } else {
-    elements.ratingModalAverage.textContent = '';
+    elements.ratingModalAverage.textContent = '—';
+    elements.ratingModalRatingCount.textContent = 'Aucune note';
   }
   elements.ratingModalPoster.replaceChildren();
   const imageUrl = posterUrl(movie.posterPath, 'w500');
@@ -1309,6 +1358,7 @@ function openRatingModal(movie, options = {}) {
 function closeRatingModal() {
   activeSeenMovie = null;
   activeMovieDetailsKey = '';
+  movieOverviewExpanded = false;
   movieDetailsRequestId += 1;
   hideModal(elements.ratingModal);
 }
@@ -2838,6 +2888,10 @@ elements.confirmMovieSelection.addEventListener('click', proposeMovie);
 elements.drawButton.addEventListener('click', drawMovie);
 elements.ratingModalBackdrop.addEventListener('click', closeRatingModal);
 elements.ratingModalClose.addEventListener('click', closeRatingModal);
+elements.ratingModalOverviewToggle.addEventListener('click', () => {
+  movieOverviewExpanded = !movieOverviewExpanded;
+  renderMovieOverview(elements.ratingModalOverview.dataset.fullText, { animate: true });
+});
 elements.ratingModalCommentForm.addEventListener('submit', saveSeenComment);
 elements.ratingModalCommentDelete.addEventListener('click', deleteSeenComment);
 elements.warningModalBackdrop.addEventListener('click', closeWarningModal);
