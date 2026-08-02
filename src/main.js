@@ -85,7 +85,9 @@ const elements = {
   seenCount: document.querySelector('#seenCount'),
   ratingModal: document.querySelector('#ratingModal'),
   ratingModalBackdrop: document.querySelector('#ratingModalBackdrop'),
+  ratingModalBackdropArt: document.querySelector('#ratingModalBackdropArt'),
   ratingModalClose: document.querySelector('#ratingModalClose'),
+  ratingModalLogo: document.querySelector('#ratingModalLogo'),
   ratingModalTitle: document.querySelector('#ratingModalTitle'),
   ratingModalFacts: document.querySelector('#ratingModalFacts'),
   ratingModalOverview: document.querySelector('#ratingModalOverview'),
@@ -837,7 +839,7 @@ async function fetchMovieDetails(movie) {
   if (movieDetailsCache.has(cacheKey)) return movieDetailsCache.get(cacheKey);
   if (!movie.tmdbId) return null;
 
-  const response = await fetch(`https://api.themoviedb.org/3/movie/${movie.tmdbId}?language=fr-FR&append_to_response=credits,external_ids`, {
+  const response = await fetch(`https://api.themoviedb.org/3/movie/${movie.tmdbId}?language=fr-FR&append_to_response=credits,external_ids,images&include_image_language=fr,en,null`, {
     headers: { Authorization: `Bearer ${tmdbToken}`, accept: 'application/json' },
   });
   if (!response.ok) throw new Error('Movie details failed');
@@ -856,6 +858,80 @@ function getCast(details) {
     .map((person) => person.name)
     .filter(Boolean)
     .join(', ');
+}
+
+function getPreferredMovieLogo(details) {
+  const logos = Array.isArray(details?.images?.logos) ? details.images.logos : [];
+  const languagePriority = { fr: 0, en: 1, none: 2 };
+  return [...logos].sort((first, second) => {
+    const firstLanguage = first.iso_639_1 || 'none';
+    const secondLanguage = second.iso_639_1 || 'none';
+    const languageDifference = (languagePriority[firstLanguage] ?? 3) - (languagePriority[secondLanguage] ?? 3);
+    if (languageDifference) return languageDifference;
+    const voteDifference = Number(second.vote_average || 0) - Number(first.vote_average || 0);
+    if (voteDifference) return voteDifference;
+    return Number(second.width || 0) - Number(first.width || 0);
+  })[0] || null;
+}
+
+function createArtworkImage(url, { alt = '', priority = 'auto' } = {}) {
+  const image = document.createElement('img');
+  image.src = url;
+  image.alt = alt;
+  image.decoding = 'async';
+  image.loading = priority === 'high' ? 'eager' : 'lazy';
+  image.fetchPriority = priority;
+  return image;
+}
+
+function createMoviePosterFallback(movie) {
+  const fallback = document.createElement('div');
+  fallback.className = 'poster-card__fallback';
+  fallback.textContent = movie.title;
+  return fallback;
+}
+
+function renderMovieArtwork(movie, details) {
+  const posterPath = details?.poster_path || movie.posterPath;
+  const posterImageUrl = posterUrl(posterPath, 'w500');
+  elements.ratingModalPoster.replaceChildren();
+  if (posterImageUrl) {
+    const posterImage = createArtworkImage(posterImageUrl, { priority: 'high' });
+    posterImage.addEventListener('error', () => {
+      elements.ratingModalPoster.replaceChildren(createMoviePosterFallback(movie));
+    }, { once: true });
+    elements.ratingModalPoster.append(posterImage);
+  } else {
+    elements.ratingModalPoster.append(createMoviePosterFallback(movie));
+  }
+
+  const backdropPath = details?.backdrop_path || details?.images?.backdrops?.[0]?.file_path || '';
+  const backdropImageUrl = posterUrl(backdropPath, 'w1280');
+  elements.ratingModalBackdropArt.replaceChildren();
+  elements.ratingModalBackdropArt.classList.toggle('hidden', !backdropImageUrl);
+  if (backdropImageUrl) {
+    const backdropImage = createArtworkImage(backdropImageUrl, { priority: 'high' });
+    backdropImage.addEventListener('error', () => {
+      elements.ratingModalBackdropArt.replaceChildren();
+      elements.ratingModalBackdropArt.classList.add('hidden');
+    }, { once: true });
+    elements.ratingModalBackdropArt.append(backdropImage);
+  }
+
+  const logo = getPreferredMovieLogo(details);
+  const logoImageUrl = posterUrl(logo?.file_path, 'w500');
+  elements.ratingModalLogo.replaceChildren();
+  elements.ratingModalLogo.classList.toggle('hidden', !logoImageUrl);
+  elements.ratingModalTitle.classList.toggle('rating-modal__title--logo', Boolean(logoImageUrl));
+  if (logoImageUrl) {
+    const logoImage = createArtworkImage(logoImageUrl, { priority: 'high' });
+    logoImage.addEventListener('error', () => {
+      elements.ratingModalLogo.replaceChildren();
+      elements.ratingModalLogo.classList.add('hidden');
+      elements.ratingModalTitle.classList.remove('rating-modal__title--logo');
+    }, { once: true });
+    elements.ratingModalLogo.append(logoImage);
+  }
 }
 
 function getMovieOverviewPreview(overview) {
@@ -904,6 +980,7 @@ function renderMovieOverview(overview, { animate = false } = {}) {
 }
 
 function renderMovieDetails(movie, details, state = 'ready') {
+  renderMovieArtwork(movie, details);
   const genres = (details?.genres || []).map((genre) => genre.name).filter(Boolean).slice(0, 3).join(', ');
   const facts = [
     movie.isTestDraw ? createFact('Tirage', 'Test') : null,
@@ -1332,19 +1409,6 @@ function openRatingModal(movie, options = {}) {
   } else {
     elements.ratingModalAverage.textContent = '—';
     elements.ratingModalRatingCount.textContent = 'Aucune note';
-  }
-  elements.ratingModalPoster.replaceChildren();
-  const imageUrl = posterUrl(movie.posterPath, 'w500');
-  if (imageUrl) {
-    const image = document.createElement('img');
-    image.src = imageUrl;
-    image.alt = '';
-    elements.ratingModalPoster.append(image);
-  } else {
-    const fallback = document.createElement('div');
-    fallback.className = 'poster-card__fallback';
-    fallback.textContent = movie.title;
-    elements.ratingModalPoster.append(fallback);
   }
   renderMovieDetails(movie, null, 'loading');
   loadMovieDetails(movie, requestId);
