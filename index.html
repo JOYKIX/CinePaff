@@ -12,7 +12,7 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@500;600;700&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,300..600,0..1,-25..0&display=swap"
     />
-    <link rel="stylesheet" href="./styles.css?v=cinepaff-v2-43" />
+    <link rel="stylesheet" href="./styles.css?v=cinepaff-v2-44" />
     <link rel="icon" href="./image/logocinepafficon.svg?v=1" type="image/svg+xml" />
   </head>
   <body>
@@ -183,9 +183,24 @@
               <div class="section-intro section-intro--pool">
                 <span class="section-number">02</span>
                 <h3>En lice</h3>
-                <span class="metric section-intro__metric" id="selectionCount">0 en lice</span>
+                <span class="metric section-intro__metric" id="selectionCount">0 film</span>
               </div>
-              <div class="poster-grid" id="movieList"></div>
+              <div class="movie-pools">
+                <section class="movie-pool" aria-labelledby="primaryMoviesTitle">
+                  <header class="movie-pool__head">
+                    <h4 id="primaryMoviesTitle">Films principaux</h4>
+                    <span id="primaryMovieCount">0</span>
+                  </header>
+                  <div class="poster-grid" id="movieList"></div>
+                </section>
+                <section class="movie-pool movie-pool--secondary hidden" id="secondaryMovieSection" aria-labelledby="secondaryMoviesTitle">
+                  <header class="movie-pool__head">
+                    <h4 id="secondaryMoviesTitle">Films secondaires</h4>
+                    <span id="secondaryMovieCount">0</span>
+                  </header>
+                  <div class="poster-grid poster-grid--secondary" id="secondaryMovieList"></div>
+                </section>
+              </div>
             </section>
           </div>
         </section>
@@ -671,6 +686,6 @@
       </div>
     </main>
 
-    <script type="module" src="./src/main.js?v=cinepaff-v2-45"></script>
+    <script type="module" src="./src/main.js?v=cinepaff-v2-46"></script>
   </body>
 </html>

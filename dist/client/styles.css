@@ -10,12 +10,44 @@
   html {
     color-scheme: dark;
     scroll-behavior: smooth;
+    scrollbar-color: rgba(223, 255, 95, 0.48) #090a18;
+    scrollbar-width: thin;
+  }
+
+  * {
+    scrollbar-color: rgba(223, 255, 95, 0.48) #090a18;
+    scrollbar-width: thin;
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: #090a18;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    min-height: 42px;
+    border: 2px solid #090a18;
+    border-radius: 6px;
+    background: rgba(223, 255, 95, 0.42);
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: #dfff5f;
+  }
+
+  *::-webkit-scrollbar-corner {
+    background: #090a18;
   }
 
   body,
   h1,
   h2,
   h3,
+  h4,
   p {
     margin: 0;
   }
@@ -1535,6 +1567,53 @@
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: clamp(0.8rem, 1.6vw, 1.5rem);
+  }
+
+  .movie-pools {
+    display: grid;
+    gap: clamp(2.7rem, 5vw, 4.8rem);
+  }
+
+  .movie-pool {
+    min-width: 0;
+  }
+
+  .movie-pool__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.15rem;
+    padding-bottom: 0.8rem;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .movie-pool__head h4 {
+    font-family: var(--font-display);
+    font-size: 0.92rem;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+  }
+
+  .movie-pool__head > span {
+    min-width: 1.65rem;
+    height: 1.65rem;
+    display: grid;
+    place-items: center;
+    padding: 0 0.42rem;
+    border: 1px solid var(--line-gold);
+    border-radius: var(--radius-sm);
+    color: var(--gold);
+    font-size: 0.58rem;
+    font-weight: 800;
+  }
+
+  .movie-pool--secondary {
+    padding-top: 0.2rem;
+  }
+
+  .poster-grid--secondary .poster-card {
+    background: var(--black-soft);
   }
 
   .poster-card {

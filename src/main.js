@@ -54,6 +54,10 @@ const elements = {
   confirmMovieSelection: document.querySelector('#confirmMovieSelection'),
   movieList: document.querySelector('#movieList'),
   selectionCount: document.querySelector('#selectionCount'),
+  primaryMovieCount: document.querySelector('#primaryMovieCount'),
+  secondaryMovieSection: document.querySelector('#secondaryMovieSection'),
+  secondaryMovieCount: document.querySelector('#secondaryMovieCount'),
+  secondaryMovieList: document.querySelector('#secondaryMovieList'),
   currentPick: document.querySelector('#currentPick'),
   currentPickBackdrop: document.querySelector('#currentPickBackdrop'),
   currentPickContent: document.querySelector('#currentPick .now-playing__content'),
@@ -1154,17 +1158,37 @@ function renderForcedDrawOptions() {
   elements.drawForcedMovie.disabled = !keepSelectionOnDraw || drawInProgress || !candidates.length;
 }
 
+function createSelectionMovieCard(movie, { secondary = false } = {}) {
+  const item = document.createElement('article');
+  item.className = `poster-card${secondary ? ' poster-card--secondary' : ''}`;
+  item.append(createCardButton(movie, `Voir la fiche de ${movie.title}`, () => openRatingModal(movie, { allowRating: false })));
+  item.append(createSelectionSeenButton(movie));
+  const warningButton = createWarningButton(movie);
+  if (warningButton) item.append(warningButton);
+  return item;
+}
+
 function renderMovies() {
-  const list = getSelectionMovies().sort((a, b) => {
+  const sortMovies = (a, b) => {
     const ownA = a.proposedBy === currentUser?.id;
     const ownB = b.proposedBy === currentUser?.id;
     if (ownA !== ownB) return ownA ? -1 : 1;
-    return (a.createdAt || 0) - (b.createdAt || 0);
-  });
+    return String(a.proposedBy || '').localeCompare(String(b.proposedBy || ''), 'fr')
+      || (a.createdAt || 0) - (b.createdAt || 0);
+  };
+  const primaryList = getSelectionMovies().sort(sortMovies);
+  const primaryKeys = new Set(primaryList.map((movie) => movie.key));
+  const secondaryList = movieArray()
+    .filter((movie) => !primaryKeys.has(movie.key))
+    .sort(sortMovies);
   const ownMovies = proposedMovies();
   const canPropose = canProposeMovie();
   const eligibleParticipants = getParticipantPools({ excludeLastDrawn: !keepSelectionOnDraw }).length;
-  elements.selectionCount.textContent = `${list.length} en lice`;
+  const totalMovies = primaryList.length + secondaryList.length;
+  elements.selectionCount.textContent = `${totalMovies} film${totalMovies > 1 ? 's' : ''}`;
+  elements.primaryMovieCount.textContent = String(primaryList.length);
+  elements.secondaryMovieCount.textContent = String(secondaryList.length);
+  elements.secondaryMovieSection.classList.toggle('hidden', !secondaryList.length);
   elements.drawPoolCount.textContent = `${eligibleParticipants} participant${eligibleParticipants > 1 ? 's' : ''}`;
   elements.drawButton.disabled = eligibleParticipants === 0 || drawInProgress;
   renderForcedDrawOptions();
@@ -1177,20 +1201,14 @@ function renderMovies() {
       ? `${ownMovies.length}/${maxMoviesPerUser} films · 1 principal`
       : `0/${maxMoviesPerUser} films`);
   renderProposalPreview(ownMovies);
-  if (!list.length) {
+  if (!primaryList.length) {
     elements.movieList.replaceChildren(createEmptyState('Aucun film en sélection'));
+    elements.secondaryMovieList.replaceChildren();
     return;
   }
 
-  elements.movieList.replaceChildren(...list.map((movie) => {
-    const item = document.createElement('article');
-    item.className = 'poster-card';
-    item.append(createCardButton(movie, `Voir la fiche de ${movie.title}`, () => openRatingModal(movie, { allowRating: false })));
-    item.append(createSelectionSeenButton(movie));
-    const warningButton = createWarningButton(movie);
-    if (warningButton) item.append(warningButton);
-    return item;
-  }));
+  elements.movieList.replaceChildren(...primaryList.map((movie) => createSelectionMovieCard(movie)));
+  elements.secondaryMovieList.replaceChildren(...secondaryList.map((movie) => createSelectionMovieCard(movie, { secondary: true })));
 }
 
 function createEmptyState(text) {
