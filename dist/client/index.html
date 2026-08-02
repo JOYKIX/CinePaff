@@ -12,7 +12,7 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@500;600;700&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,300..600,0..1,-25..0&display=swap"
     />
-    <link rel="stylesheet" href="./styles.css?v=cinepaff-v2-18" />
+    <link rel="stylesheet" href="./styles.css?v=cinepaff-v2-26" />
     <link rel="icon" href="./image/logocinepafficon.svg?v=1" type="image/svg+xml" />
   </head>
   <body>
@@ -81,15 +81,15 @@
               </button>
               <button class="tab" type="button" data-route="availability">
                 <span class="material-symbols-rounded" aria-hidden="true">calendar_month</span>
-                <span>Disponibilités</span>
-              </button>
-              <button class="tab draw-only hidden" type="button" data-route="draws">
-                <span class="material-symbols-rounded" aria-hidden="true">casino</span>
-                <span>Tirage</span>
+                <span>Disponibilité</span>
               </button>
               <button class="tab" type="button" data-route="seen">
                 <span class="material-symbols-rounded" aria-hidden="true">history</span>
                 <span>Historique</span>
+              </button>
+              <button class="tab draw-only hidden" type="button" data-route="draws">
+                <span class="material-symbols-rounded" aria-hidden="true">casino</span>
+                <span>Tirage</span>
               </button>
               <button class="tab tab--profile" type="button" data-route="profile">
                 <span class="material-symbols-rounded" aria-hidden="true">person</span>
@@ -98,11 +98,13 @@
             </nav>
 
             <div class="session">
-              <span class="session__avatar" aria-hidden="true"></span>
-              <span class="session__identity">
-                <small>Connecté</small>
-                <strong id="currentUser"></strong>
-              </span>
+              <button class="session__profile" id="sessionProfileButton" type="button" aria-label="Ouvrir mon profil">
+                <span class="session__avatar" aria-hidden="true"></span>
+                <span class="session__identity">
+                  <small>Connecté</small>
+                  <strong id="currentUser"></strong>
+                </span>
+              </button>
               <button id="logoutButton" class="icon-action" type="button" aria-label="Déconnexion" title="Déconnexion">
                 <span class="material-symbols-rounded" aria-hidden="true">logout</span>
               </button>
@@ -344,12 +346,9 @@
                 <span id="drawStatus">PRÊT</span>
               </div>
               <div class="draw-fx" aria-hidden="true">
-                <div class="draw-orbit draw-orbit--outer"></div>
-                <div class="draw-orbit draw-orbit--inner"></div>
                 <div class="draw-countdown" id="drawCountdown"></div>
                 <div class="draw-burst" id="drawBurst"></div>
               </div>
-              <div class="draw-core" id="drawCore" aria-hidden="true"><span></span><i></i></div>
               <div class="cover-window">
                 <div class="cover-stack" id="coverStack"></div>
               </div>
@@ -505,7 +504,10 @@
             <span class="material-symbols-rounded" aria-hidden="true">close</span>
           </button>
           <div class="rating-modal__content">
-            <div class="rating-modal__poster" id="ratingModalPoster"></div>
+            <aside class="rating-modal__visual">
+              <div class="rating-modal__poster" id="ratingModalPoster"></div>
+              <small id="ratingModalAttribution"></small>
+            </aside>
             <div class="rating-modal__meta">
               <span class="kicker">Fiche film</span>
               <h2 id="ratingModalTitle"></h2>
@@ -516,11 +518,35 @@
                 <a class="external-link hidden" id="ratingModalImdb" href="#" target="_blank" rel="noreferrer">
                   IMDb <span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span>
                 </a>
-                <small id="ratingModalAverage"></small>
-                <div class="rating rating--modal" id="ratingModalStars"></div>
               </div>
             </div>
           </div>
+          <section class="rating-modal__community hidden" id="ratingModalCommunity" aria-label="Avis du groupe">
+            <div class="rating-modal__rating-summary">
+              <span class="kicker">Avis du groupe</span>
+              <strong id="ratingModalAverage"></strong>
+              <div class="rating rating--modal" id="ratingModalStars"></div>
+            </div>
+            <section class="movie-comments" id="ratingModalComments" aria-label="Commentaires">
+                <div class="movie-comments__head">
+                  <strong>Commentaires</strong>
+                  <span id="ratingModalCommentCount">0</span>
+                </div>
+                <div class="movie-comments__list" id="ratingModalCommentList"></div>
+                <form class="movie-comments__form" id="ratingModalCommentForm">
+                  <textarea id="ratingModalCommentInput" rows="2" maxlength="500" placeholder="Ajouter un commentaire" aria-label="Ajouter un commentaire"></textarea>
+                  <div class="movie-comments__actions">
+                    <button class="movie-comments__delete hidden" id="ratingModalCommentDelete" type="button" aria-label="Supprimer mon commentaire" title="Supprimer mon commentaire">
+                      <span class="material-symbols-rounded" aria-hidden="true">delete</span>
+                    </button>
+                    <button class="button button--primary" id="ratingModalCommentSubmit" type="submit">
+                      <span id="ratingModalCommentSubmitLabel">Publier</span>
+                      <span class="material-symbols-rounded" aria-hidden="true">arrow_upward</span>
+                    </button>
+                  </div>
+                </form>
+            </section>
+          </section>
         </section>
       </div>
 
@@ -530,7 +556,9 @@
           <button class="modal-close" id="warningModalClose" type="button" aria-label="Fermer">
             <span class="material-symbols-rounded" aria-hidden="true">close</span>
           </button>
-          <span class="material-symbols-rounded app-modal__icon app-modal__icon--warning" aria-hidden="true">warning</span>
+          <span class="app-modal__icon app-modal__icon--warning" aria-hidden="true">
+            <span class="material-symbols-rounded">warning</span>
+          </span>
           <span class="kicker">Avant de regarder</span>
           <h2 id="warningModalTitle">Warnings</h2>
           <p id="warningModalIntro"></p>
@@ -544,7 +572,9 @@
           <button class="modal-close" id="deleteHistoryClose" type="button" aria-label="Annuler">
             <span class="material-symbols-rounded" aria-hidden="true">close</span>
           </button>
-          <span class="material-symbols-rounded app-modal__icon app-modal__icon--danger" aria-hidden="true">delete</span>
+          <span class="app-modal__icon app-modal__icon--danger" aria-hidden="true">
+            <span class="material-symbols-rounded">delete</span>
+          </span>
           <span class="kicker">Confirmation</span>
           <h2 id="deleteHistoryTitle">Supprimer de l’historique</h2>
           <p id="deleteHistoryText"></p>
@@ -619,6 +649,6 @@
       </div>
     </main>
 
-    <script type="module" src="./src/main.js?v=cinepaff-v2-18"></script>
+    <script type="module" src="./src/main.js?v=cinepaff-v2-26"></script>
   </body>
 </html>

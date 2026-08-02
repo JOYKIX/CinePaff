@@ -822,11 +822,24 @@
   .session {
     width: 100%;
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 0.7rem;
     padding-top: 1rem;
     border-top: 1px solid var(--line);
+  }
+
+  .session__profile {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.35rem;
+    margin: -0.35rem;
+    color: var(--ink);
+    background: transparent;
+    text-align: left;
   }
 
   .session__avatar,
@@ -2031,32 +2044,9 @@
     isolation: isolate;
     border-block: 1px solid var(--line-gold);
     background:
-      radial-gradient(ellipse at 50% 48%, rgba(139, 92, 246, 0.2), transparent 46%),
+      radial-gradient(ellipse at 50% 52%, rgba(223, 255, 95, 0.07), transparent 48%),
       linear-gradient(180deg, rgba(247, 247, 242, 0.025), transparent 28%),
       rgba(9, 10, 24, 0.72);
-  }
-
-  .draw-stage::before {
-    position: absolute;
-    z-index: 0;
-    inset: 8% 12%;
-    content: "";
-    border: 1px solid rgba(247, 247, 242, 0.055);
-    border-radius: 50%;
-    background: radial-gradient(ellipse, rgba(223, 255, 95, 0.075), transparent 58%);
-    opacity: 0;
-    pointer-events: none;
-    transform: scale(0.9);
-  }
-
-  .draw-stage.is-arming::before,
-  .draw-stage.is-drawing::before {
-    opacity: 1;
-    animation: draw-arena-breathe 1.8s var(--ease) infinite alternate;
-  }
-
-  @keyframes draw-arena-breathe {
-    to { opacity: 0.52; transform: scale(1.04); }
   }
 
   .draw-stage::after {
@@ -2108,44 +2098,6 @@
     place-items: center;
     overflow: hidden;
     pointer-events: none;
-  }
-
-  .draw-orbit {
-    position: absolute;
-    border-radius: 50%;
-    opacity: 0;
-    transition: opacity 300ms ease;
-  }
-
-  .draw-orbit--outer {
-    width: min(64vw, 720px);
-    height: min(42vw, 430px);
-    border: 1px solid rgba(139, 92, 246, 0.26);
-  }
-
-  .draw-orbit--inner {
-    width: min(42vw, 470px);
-    height: min(27vw, 280px);
-    border: 1px dashed rgba(223, 255, 95, 0.2);
-  }
-
-  .draw-stage.is-arming .draw-orbit,
-  .draw-stage.is-drawing .draw-orbit {
-    opacity: 1;
-  }
-
-  .draw-stage.is-arming .draw-orbit--outer,
-  .draw-stage.is-drawing .draw-orbit--outer {
-    animation: orbit-spin 12s linear infinite;
-  }
-
-  .draw-stage.is-arming .draw-orbit--inner,
-  .draw-stage.is-drawing .draw-orbit--inner {
-    animation: orbit-spin 8s linear reverse infinite;
-  }
-
-  @keyframes orbit-spin {
-    to { transform: rotate(1turn); }
   }
 
   .draw-countdown {
@@ -2214,101 +2166,50 @@
   }
 
   .cover-stack {
-    width: 100%;
-    height: 100%;
-    position: relative;
+    width: max-content;
+    position: absolute;
+    top: 50%;
+    left: 0;
+    display: flex;
+    align-items: center;
+    gap: clamp(0.7rem, 1.5vw, 1.35rem);
+    transform: translate3d(10vw, -50%, 0);
+    will-change: transform, filter, opacity;
   }
 
   .draw-cover {
-    position: absolute;
-    top: 50%;
-    left: 50%;
     width: var(--cover-width);
+    flex: 0 0 var(--cover-width);
     aspect-ratio: 2 / 3;
     border-radius: var(--radius-sm);
     object-fit: cover;
-    filter: brightness(0.58) saturate(0.68);
-    opacity: 0;
+    filter: brightness(0.68) saturate(0.78);
+    opacity: 0.42;
     box-shadow: 0 16px 55px rgba(0, 0, 0, 0.42);
-    transform: translate(-50%, -50%) translate(var(--deck-x), var(--deck-y)) rotate(var(--deck-rotation)) scale(0.76);
+    transform: translateY(var(--card-y)) rotate(var(--card-rotation)) scale(0.9);
     transform-origin: center;
     will-change: transform, filter, opacity;
   }
 
   .draw-stage.is-arming .draw-cover {
     opacity: 0.68;
-    animation: deck-breathe 760ms var(--ease) infinite alternate;
-    animation-delay: var(--deck-delay);
+    animation: reel-card-idle 900ms var(--ease) infinite alternate;
+    animation-delay: var(--card-delay);
   }
 
-  @keyframes deck-breathe {
-    from { transform: translate(-50%, -50%) translate(var(--deck-x), var(--deck-y)) rotate(var(--deck-rotation)) scale(0.72); }
-    to { transform: translate(-50%, -50%) translate(var(--deck-x), calc(var(--deck-y) - 4px)) rotate(var(--deck-rotation)) scale(0.75); filter: brightness(0.74); }
+  .draw-stage.is-drawing .draw-cover {
+    opacity: 0.94;
+    filter: brightness(0.82) saturate(0.9);
+    animation: reel-card-run 620ms ease-in-out infinite alternate;
+    animation-delay: var(--card-delay);
   }
 
-  .draw-core {
-    position: absolute;
-    z-index: 6;
-    top: 50%;
-    left: 50%;
-    width: clamp(105px, 12vw, 160px);
-    aspect-ratio: 1;
-    border: 1px solid rgba(223, 255, 95, 0.25);
-    border-radius: 50%;
-    opacity: 0.18;
-    pointer-events: none;
-    transform: translate(-50%, -50%);
-    transition: opacity 250ms ease, transform 400ms var(--ease);
+  @keyframes reel-card-idle {
+    to { transform: translateY(calc(var(--card-y) - 3px)) rotate(var(--card-rotation-end)) scale(0.92); filter: brightness(0.76) saturate(0.82); }
   }
 
-  .draw-core::before,
-  .draw-core::after,
-  .draw-core span,
-  .draw-core i {
-    position: absolute;
-    border-radius: 50%;
-  }
-
-  .draw-core::before {
-    inset: 12%;
-    content: "";
-    border: 1px dashed rgba(181, 154, 255, 0.56);
-  }
-
-  .draw-core::after {
-    inset: 36%;
-    content: "";
-    background: var(--gold);
-    box-shadow: 0 0 45px rgba(223, 255, 95, 0.72);
-  }
-
-  .draw-core span {
-    inset: -16%;
-    border: 1px solid rgba(139, 92, 246, 0.22);
-  }
-
-  .draw-core i {
-    inset: 24%;
-    border: 1px solid rgba(223, 255, 95, 0.38);
-  }
-
-  .draw-stage.is-arming .draw-core,
-  .draw-stage.is-drawing .draw-core {
-    opacity: 0.88;
-    animation: core-pulse 780ms var(--ease) infinite alternate;
-  }
-
-  .draw-stage.is-drawing .draw-core::before {
-    animation: orbit-spin 1.8s linear infinite;
-  }
-
-  @keyframes core-pulse {
-    to { transform: translate(-50%, -50%) scale(1.12); filter: brightness(1.22); }
-  }
-
-  .draw-core--hidden {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(0.4);
+  @keyframes reel-card-run {
+    to { transform: translateY(calc(var(--card-y) - 6px)) rotate(var(--card-rotation-end)) scale(0.94); }
   }
 
   .draw-curtain {
@@ -2397,6 +2298,20 @@
     color: var(--gold-light);
     font-size: 0.58rem;
     font-weight: 800;
+  }
+
+  .seen-card__comments {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.22rem;
+    margin-left: auto;
+    color: var(--muted);
+    font-size: 0.56rem;
+    font-weight: 750;
+  }
+
+  .seen-card__comments .material-symbols-rounded {
+    font-size: 0.78rem;
   }
 
   .seen-card__badge {
@@ -2786,8 +2701,9 @@
   }
 
   .rating-modal__panel {
-    width: min(1050px, 100%);
+    width: min(1180px, 100%);
     padding: clamp(1rem, 3vw, 2.5rem);
+    overflow-x: hidden;
   }
 
   .app-modal__panel {
@@ -2823,15 +2739,27 @@
 
   .rating-modal__content {
     display: grid;
-    grid-template-columns: minmax(230px, 340px) minmax(0, 1fr);
-    gap: clamp(2rem, 5vw, 4.5rem);
+    grid-template-columns: minmax(210px, 280px) minmax(0, 1fr);
+    gap: clamp(2rem, 4vw, 3.8rem);
     align-items: start;
+  }
+
+  .rating-modal__visual {
+    min-width: 0;
+    display: grid;
+    gap: 0.8rem;
+  }
+
+  .rating-modal__visual > small {
+    color: var(--muted);
+    font-size: 0.62rem;
   }
 
   .rating-modal__poster {
     width: 100%;
     aspect-ratio: 2 / 3;
     overflow: hidden;
+    border-radius: var(--radius-sm);
     background: var(--surface);
   }
 
@@ -2846,13 +2774,17 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    min-height: 100%;
-    padding-top: 1.4rem;
+    padding: 0.8rem 3rem 0 0;
   }
 
   .rating-modal__meta h2 {
+    max-width: 100%;
     margin-top: 1rem;
-    font-size: clamp(2.8rem, 6vw, 6.4rem);
+    font-size: clamp(2.4rem, 4.6vw, 5rem);
+    line-height: 0.94;
+    overflow-wrap: anywhere;
+    text-wrap: balance;
+    word-break: break-word;
   }
 
   .movie-facts {
@@ -2881,7 +2813,7 @@
   }
 
   .rating-modal__overview {
-    max-width: 60ch;
+    max-width: 72ch;
     margin-top: 1.5rem;
     color: var(--muted);
     font-size: 0.78rem;
@@ -2901,13 +2833,34 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 1rem;
-    margin-top: auto;
-    padding-top: 2rem;
+    margin-top: 1.4rem;
+    padding-top: 0;
   }
 
-  .rating-modal__footer > small {
-    color: var(--muted);
-    font-size: 0.62rem;
+  .rating-modal__community {
+    display: grid;
+    grid-template-columns: minmax(220px, 0.65fr) minmax(0, 1.35fr);
+    gap: clamp(2rem, 5vw, 5rem);
+    margin-top: clamp(2rem, 4vw, 3.2rem);
+    padding-top: clamp(1.5rem, 3vw, 2.4rem);
+    border-top: 1px solid var(--line);
+  }
+
+  .rating-modal__rating-summary {
+    align-self: start;
+    display: grid;
+    gap: 0.8rem;
+    padding-right: clamp(1rem, 3vw, 3rem);
+    border-right: 1px solid var(--line);
+  }
+
+  .rating-modal__rating-summary > strong {
+    max-width: 22ch;
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: clamp(1.45rem, 2.4vw, 2.15rem);
+    letter-spacing: -0.04em;
+    line-height: 1.05;
   }
 
   .external-link {
@@ -2947,6 +2900,157 @@
     text-shadow: 0 0 18px rgba(223, 255, 95, 0.48);
   }
 
+  .rating--modal {
+    margin-top: 0.15rem;
+  }
+
+  .rating--modal .rating-button {
+    font-size: 2rem;
+  }
+
+  .movie-comments {
+    min-width: 0;
+  }
+
+  .movie-comments__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-bottom: 0.8rem;
+  }
+
+  .movie-comments__head strong {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    letter-spacing: -0.03em;
+  }
+
+  .movie-comments__head > span {
+    color: var(--gold);
+    font-size: 0.62rem;
+    font-weight: 800;
+  }
+
+  .movie-comments__list {
+    max-height: 230px;
+    overflow-y: auto;
+    border-top: 1px solid var(--line);
+  }
+
+  .movie-comment {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: 0.75rem;
+    padding: 0.9rem 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .movie-comment__avatar {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    color: var(--black);
+    background-color: var(--gold);
+    background-position: center;
+    background-size: cover;
+    font-size: 0.55rem;
+    font-weight: 900;
+  }
+
+  .movie-comment > div {
+    min-width: 0;
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .movie-comment > div > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.8rem;
+  }
+
+  .movie-comment strong {
+    overflow: hidden;
+    font-size: 0.68rem;
+    text-overflow: ellipsis;
+  }
+
+  .movie-comment small {
+    flex: 0 0 auto;
+    color: var(--dim);
+    font-size: 0.52rem;
+  }
+
+  .movie-comment p {
+    color: var(--muted);
+    font-size: 0.7rem;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+
+  .movie-comments__form {
+    display: grid;
+    gap: 0.65rem;
+    padding-top: 1rem;
+  }
+
+  .movie-comments__form textarea {
+    width: 100%;
+    min-height: 78px;
+    resize: vertical;
+    padding: 0.8rem 0.9rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    outline: 0;
+    color: var(--ink);
+    background: var(--surface);
+    font: inherit;
+    font-size: 0.7rem;
+    line-height: 1.5;
+  }
+
+  .movie-comments__form textarea:focus {
+    border-color: var(--line-gold);
+  }
+
+  .movie-comments__actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.55rem;
+  }
+
+  .movie-comments__actions .button {
+    min-height: 40px;
+    padding: 0.55rem 0.8rem;
+  }
+
+  .movie-comments__delete {
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-sm);
+    color: var(--danger);
+    background: transparent;
+  }
+
+  .movie-comments__delete:hover,
+  .movie-comments__delete:focus-visible {
+    background: rgba(244, 112, 102, 0.08);
+  }
+
+  .movie-comments__delete .material-symbols-rounded,
+  .movie-comments__actions .material-symbols-rounded {
+    font-size: 1rem;
+  }
+
   .app-modal__icon {
     width: 48px;
     height: 48px;
@@ -2958,9 +3062,13 @@
     border-radius: 50%;
     color: var(--warning);
     background: rgba(238, 173, 105, 0.08);
+  }
+
+  .app-modal__icon > .material-symbols-rounded {
+    display: block;
     font-size: 1.15rem;
     line-height: 1;
-    text-align: center;
+    transform: translateY(2px);
   }
 
   .app-modal__icon--danger {
@@ -3559,9 +3667,17 @@
       margin-inline: auto;
     }
 
+    .rating-modal__visual {
+      justify-items: center;
+    }
+
+    .rating-modal__visual > small {
+      text-align: center;
+    }
+
     .rating-modal__meta {
       align-items: center;
-      padding-top: 0;
+      padding: 0;
       text-align: center;
     }
 
@@ -3578,6 +3694,23 @@
     .rating-modal__overview {
       font-size: 0.72rem;
       text-align: left;
+    }
+
+    .rating-modal__community {
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+
+    .rating-modal__rating-summary {
+      justify-items: center;
+      padding: 0 0 1.5rem;
+      border-right: 0;
+      border-bottom: 1px solid var(--line);
+      text-align: center;
+    }
+
+    .movie-comments__list {
+      max-height: 190px;
     }
 
     .app-modal__icon {

@@ -36,6 +36,7 @@ const elements = {
   authToggle: document.querySelector('#authToggle'),
   currentUser: document.querySelector('#currentUser'),
   sessionAvatar: document.querySelector('.session__avatar'),
+  sessionProfileButton: document.querySelector('#sessionProfileButton'),
   profileAvatar: document.querySelector('.profile-card__avatar'),
   logoutButton: document.querySelector('#logoutButton'),
   menuToggle: document.querySelector('#menuToggle'),
@@ -79,7 +80,6 @@ const elements = {
   drawCountdown: document.querySelector('#drawCountdown'),
   drawBurst: document.querySelector('#drawBurst'),
   drawKeepSelectionToggle: document.querySelector('#drawKeepSelectionToggle'),
-  drawCore: document.querySelector('#drawCore'),
   userList: document.querySelector('#userList'),
   seenList: document.querySelector('#seenList'),
   seenCount: document.querySelector('#seenCount'),
@@ -92,8 +92,18 @@ const elements = {
   ratingModalCredits: document.querySelector('#ratingModalCredits'),
   ratingModalImdb: document.querySelector('#ratingModalImdb'),
   ratingModalAverage: document.querySelector('#ratingModalAverage'),
+  ratingModalAttribution: document.querySelector('#ratingModalAttribution'),
+  ratingModalCommunity: document.querySelector('#ratingModalCommunity'),
   ratingModalPoster: document.querySelector('#ratingModalPoster'),
   ratingModalStars: document.querySelector('#ratingModalStars'),
+  ratingModalComments: document.querySelector('#ratingModalComments'),
+  ratingModalCommentCount: document.querySelector('#ratingModalCommentCount'),
+  ratingModalCommentList: document.querySelector('#ratingModalCommentList'),
+  ratingModalCommentForm: document.querySelector('#ratingModalCommentForm'),
+  ratingModalCommentInput: document.querySelector('#ratingModalCommentInput'),
+  ratingModalCommentDelete: document.querySelector('#ratingModalCommentDelete'),
+  ratingModalCommentSubmit: document.querySelector('#ratingModalCommentSubmit'),
+  ratingModalCommentSubmitLabel: document.querySelector('#ratingModalCommentSubmitLabel'),
   warningModal: document.querySelector('#warningModal'),
   warningModalBackdrop: document.querySelector('#warningModalBackdrop'),
   warningModalClose: document.querySelector('#warningModalClose'),
@@ -194,7 +204,7 @@ let messageTimer = null;
 let searchTimer = null;
 let searchController = null;
 let avatarCropState = null;
-const drawAnimationDuration = 4600;
+const drawAnimationDuration = 3600;
 const movieDetailsCache = new Map();
 const modalReturnFocus = new WeakMap();
 const availabilityStepMinutes = 30;
@@ -356,7 +366,7 @@ function getOpenModal() {
 }
 
 function trapModalFocus(event, modal) {
-  const focusable = [...modal.querySelectorAll('button:not(:disabled), a[href], input:not(:disabled), [tabindex]:not([tabindex="-1"])')]
+  const focusable = [...modal.querySelectorAll('button:not(:disabled), a[href], input:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])')]
     .filter((element) => element.offsetParent !== null && !element.classList.contains('modal-backdrop'));
   if (!focusable.length) return;
   const first = focusable[0];
@@ -1015,10 +1025,8 @@ function renderUsers() {
 }
 
 function renderDraw() {
-  const isDrawing = elements.drawStage.classList.contains('is-drawing') || elements.drawStage.classList.contains('is-arming');
   elements.winnerCard.classList.toggle('hidden', !draw);
   elements.drawStage.classList.toggle('has-winner', Boolean(draw));
-  elements.drawCore.classList.toggle('draw-core--hidden', Boolean(draw) && !isDrawing);
   elements.winnerTitle.textContent = draw?.title || '';
   elements.winnerUser.textContent = draw?.proposedBy ? `Proposé par ${draw.proposedBy}` : '';
   elements.winnerPoster.replaceChildren();
@@ -1065,13 +1073,14 @@ function getSeenMovieId(movie) {
 }
 
 function normalizeSeenMovie(historyKey, movie) {
-  const { key: movieKey = '', ratings = {}, ...movieData } = movie;
+  const { key: movieKey = '', ratings = {}, comments = {}, ...movieData } = movie;
   return {
     ...movieData,
     key: historyKey,
     movieKey,
     historyKeys: [historyKey],
     ratings: { ...ratings },
+    comments: { ...comments },
   };
 }
 
@@ -1093,10 +1102,65 @@ function seenMovieArray() {
       historyKeys: Array.from(new Set([...(existing.historyKeys || []), historyKey])),
       drawnAt: Math.max(existing.drawnAt || 0, nextMovie.drawnAt || 0),
       ratings: { ...(existing.ratings || {}), ...(nextMovie.ratings || {}) },
+      comments: { ...(existing.comments || {}), ...(nextMovie.comments || {}) },
     });
   });
 
   return [...grouped.values()].sort((a, b) => (b.drawnAt || 0) - (a.drawnAt || 0));
+}
+
+function getMovieComments(movie) {
+  return Object.entries(movie.comments || {})
+    .map(([authorId, comment]) => ({
+      authorId,
+      text: typeof comment === 'string' ? comment.trim() : String(comment?.text || '').trim(),
+      createdAt: typeof comment === 'object' ? Number(comment?.createdAt) || 0 : 0,
+      updatedAt: typeof comment === 'object' ? Number(comment?.updatedAt) || 0 : 0,
+    }))
+    .filter((comment) => comment.text)
+    .sort((first, second) => (first.createdAt || first.updatedAt) - (second.createdAt || second.updatedAt));
+}
+
+function createMovieComment(comment) {
+  const item = document.createElement('article');
+  item.className = 'movie-comment';
+  const avatar = document.createElement('span');
+  avatar.className = 'movie-comment__avatar';
+  const avatarDataUrl = users[comment.authorId]?.avatarDataUrl || '';
+  avatar.textContent = avatarDataUrl ? '' : comment.authorId.slice(0, 2).toUpperCase();
+  avatar.style.backgroundImage = avatarDataUrl ? `url("${avatarDataUrl}")` : '';
+
+  const body = document.createElement('div');
+  const head = document.createElement('div');
+  const author = document.createElement('strong');
+  author.textContent = comment.authorId;
+  const date = document.createElement('small');
+  date.textContent = formatDate(comment.updatedAt || comment.createdAt);
+  head.append(author, date);
+  const text = document.createElement('p');
+  text.textContent = comment.text;
+  body.append(head, text);
+  item.append(avatar, body);
+  return item;
+}
+
+function renderMovieComments(movie, allowComments) {
+  elements.ratingModalComments.classList.toggle('hidden', !allowComments);
+  if (!allowComments) {
+    elements.ratingModalCommentList.replaceChildren();
+    elements.ratingModalCommentInput.value = '';
+    return;
+  }
+
+  const comments = getMovieComments(movie);
+  const ownComment = comments.find((comment) => comment.authorId === currentUser?.id) || null;
+  elements.ratingModalCommentCount.textContent = String(comments.length);
+  elements.ratingModalCommentList.replaceChildren(...comments.map(createMovieComment));
+  if (document.activeElement !== elements.ratingModalCommentInput) {
+    elements.ratingModalCommentInput.value = ownComment?.text || '';
+  }
+  elements.ratingModalCommentDelete.classList.toggle('hidden', !ownComment);
+  elements.ratingModalCommentSubmitLabel.textContent = ownComment ? 'Modifier' : 'Publier';
 }
 
 function createRatingButton(movie, value) {
@@ -1154,6 +1218,17 @@ function createSeenMovieCard(movie) {
     marker.ariaLabel = `Votre note ${userRating}/5`;
     ratingRow.append(marker);
   }
+  const commentCount = getMovieComments(movie).length;
+  if (commentCount > 0) {
+    const comments = document.createElement('span');
+    comments.className = 'seen-card__comments';
+    comments.append(createIcon('chat_bubble'));
+    const count = document.createElement('span');
+    count.textContent = String(commentCount);
+    comments.append(count);
+    comments.ariaLabel = `${commentCount} commentaire${commentCount > 1 ? 's' : ''}`;
+    ratingRow.append(comments);
+  }
   meta.append(title, proposedBy);
   if (movie.isTestDraw) meta.append(testBadge);
   meta.append(ratingRow);
@@ -1194,18 +1269,20 @@ function openRatingModal(movie, options = {}) {
   activeMovieDetailsKey = getMovieDetailsCacheKey(movie);
   const requestId = ++movieDetailsRequestId;
   elements.ratingModalTitle.textContent = movie.title;
+  elements.ratingModalAttribution.textContent = movie.proposedBy ? `Proposé par ${movie.proposedBy}` : '';
+  elements.ratingModalCommunity.classList.toggle('hidden', !allowRating);
   if (allowRating) {
     const averageRating = getAverageRating(movie);
     const ratingCount = getRatingCount(movie);
     const userRating = getUserRating(movie);
     const averageLabel = averageRating
-      ? `Moyenne ${averageRating}/5 - ${ratingCount} note${ratingCount > 1 ? 's' : ''}`
-      : 'Aucune note pour le moment';
+      ? `${averageRating}/5 · ${ratingCount} note${ratingCount > 1 ? 's' : ''}`
+      : 'Pas encore noté';
     elements.ratingModalAverage.textContent = userRating
-      ? `${averageLabel} - Votre note ${userRating}/5`
+      ? `${averageLabel} · Ta note ${userRating}/5`
       : averageLabel;
   } else {
-    elements.ratingModalAverage.textContent = movie.proposedBy ? `Proposé par ${movie.proposedBy}` : '';
+    elements.ratingModalAverage.textContent = '';
   }
   elements.ratingModalPoster.replaceChildren();
   const imageUrl = posterUrl(movie.posterPath, 'w500');
@@ -1225,6 +1302,7 @@ function openRatingModal(movie, options = {}) {
   elements.ratingModalStars.replaceChildren(...(allowRating ? [1, 2, 3, 4, 5].map((value) => createRatingButton(movie, value)) : []));
   elements.ratingModalStars.classList.toggle('hidden', !allowRating);
   elements.ratingModalStars.classList.toggle('rating--confirmed', allowRating && movie.key === ratedMovieKey && getUserRating(movie) > 0);
+  renderMovieComments(movie, allowRating);
   showModal(elements.ratingModal);
 }
 
@@ -1268,7 +1346,7 @@ function openDeleteConfirmModal(movie, type) {
   elements.deleteHistoryTitle.textContent = isProposal ? 'Retirer ta proposition' : 'Supprimer de l’historique';
   elements.deleteHistoryText.textContent = isProposal
     ? `Retirer « ${movie.title} » de la sélection ?`
-    : `Supprimer « ${movie.title} » de l’historique ? Ses notes seront également retirées.`;
+    : `Supprimer « ${movie.title} » de l’historique ? Ses notes et commentaires seront également retirés.`;
   elements.deleteHistoryConfirmLabel.textContent = isProposal ? 'Retirer' : 'Supprimer';
   showModal(elements.deleteHistoryModal, elements.deleteHistoryCancel);
 }
@@ -1277,7 +1355,7 @@ function openAccountDeleteConfirmModal() {
   if (!currentUser) return;
   pendingDeleteRequest = { type: 'account' };
   elements.deleteHistoryTitle.textContent = 'Supprimer ton compte';
-  elements.deleteHistoryText.textContent = `Supprimer définitivement le compte « ${currentUser.id} » ? Ta proposition, tes disponibilités et tes notes seront retirées.`;
+  elements.deleteHistoryText.textContent = `Supprimer définitivement le compte « ${currentUser.id} » ? Ta proposition, tes disponibilités, tes notes et tes commentaires seront retirés.`;
   elements.deleteHistoryConfirmLabel.textContent = 'Supprimer mon compte';
   showModal(elements.deleteHistoryModal, elements.deleteHistoryCancel);
 }
@@ -1313,6 +1391,45 @@ async function rateSeenMovie(key, rating) {
     await set(ref(db, `draw/history/${key}/ratings/${currentUser.id}`), normalizedRating);
   } catch {
     setMessage('Impossible d’enregistrer la note');
+  }
+}
+
+async function saveSeenComment(event) {
+  event.preventDefault();
+  const movie = activeSeenMovie;
+  const text = elements.ratingModalCommentInput.value.trim();
+  if (!currentUser || !movie?.key || !text) return;
+  const existing = movie.comments?.[currentUser.id];
+  const now = Date.now();
+  const historyKeys = movie.historyKeys?.length ? movie.historyKeys : [movie.key];
+  const changes = Object.fromEntries(historyKeys.map((key) => [`draw/history/${key}/comments/${currentUser.id}`, null]));
+  changes[`draw/history/${movie.key}/comments/${currentUser.id}`] = {
+    text,
+    createdAt: Number(existing?.createdAt) || now,
+    updatedAt: now,
+  };
+  elements.ratingModalCommentSubmit.disabled = true;
+  try {
+    await update(ref(db), changes);
+  } catch {
+    setMessage('Impossible d’enregistrer le commentaire');
+  } finally {
+    elements.ratingModalCommentSubmit.disabled = false;
+  }
+}
+
+async function deleteSeenComment() {
+  const movie = activeSeenMovie;
+  if (!currentUser || !movie?.key || !movie.comments?.[currentUser.id]) return;
+  const historyKeys = movie.historyKeys?.length ? movie.historyKeys : [movie.key];
+  const changes = Object.fromEntries(historyKeys.map((key) => [`draw/history/${key}/comments/${currentUser.id}`, null]));
+  elements.ratingModalCommentDelete.disabled = true;
+  try {
+    await update(ref(db), changes);
+  } catch {
+    setMessage('Impossible de supprimer le commentaire');
+  } finally {
+    elements.ratingModalCommentDelete.disabled = false;
   }
 }
 
@@ -1358,6 +1475,7 @@ async function deleteCurrentAccount() {
       if (movie.proposedBy === deletedUser.id) changes[`draw/history/${key}/proposedBy`] = 'COMPTE SUPPRIMÉ';
       if (movie.warningBy === deletedUser.id) changes[`draw/history/${key}/warningBy`] = null;
       if (movie.ratings?.[deletedUser.id] !== undefined) changes[`draw/history/${key}/ratings/${deletedUser.id}`] = null;
+      if (movie.comments?.[deletedUser.id] !== undefined) changes[`draw/history/${key}/comments/${deletedUser.id}`] = null;
     });
 
     const remainingUsers = Object.entries(data.users || {})
@@ -1957,6 +2075,10 @@ async function updateProfileId(event) {
         changes[`draw/history/${key}/ratings/${nextId}`] = movie.ratings[previousId];
         changes[`draw/history/${key}/ratings/${previousId}`] = null;
       }
+      if (movie.comments?.[previousId] !== undefined) {
+        changes[`draw/history/${key}/comments/${nextId}`] = movie.comments[previousId];
+        changes[`draw/history/${key}/comments/${previousId}`] = null;
+      }
     });
 
     await update(ref(db), changes);
@@ -2428,7 +2550,9 @@ function buildDrawCovers(list) {
     const target = Math.floor(Math.random() * (index + 1));
     [pool[index], pool[target]] = [pool[target], pool[index]];
   }
-  const count = Math.min(Math.max(list.length * 2, 10), 16);
+  const count = Math.min(Math.max(list.length * 5, 24), 36);
+  const rotations = [-3.2, -1.1, 2.4, 0.7, -2.1, 3, -0.4, 1.6];
+  const offsets = [5, -4, 2, -2, 4, -5, 1, -3];
   const nodes = Array.from({ length: count }, (_, index) => {
     const movie = pool[index % pool.length];
     const image = document.createElement('img');
@@ -2437,17 +2561,11 @@ function buildDrawCovers(list) {
     image.alt = '';
     image.decoding = 'async';
     image.draggable = false;
-    const deckX = ((index % 5) - 2) * 2.2;
-    const deckY = ((index % 4) - 1.5) * 1.8;
-    const deckRotation = ((index % 7) - 3) * 1.1;
-    image.dataset.deckX = String(deckX);
-    image.dataset.deckY = String(deckY);
-    image.dataset.deckRotation = String(deckRotation);
-    image.style.setProperty('--deck-x', `${deckX}px`);
-    image.style.setProperty('--deck-y', `${deckY}px`);
-    image.style.setProperty('--deck-rotation', `${deckRotation}deg`);
-    image.style.setProperty('--deck-delay', `${-(index % 5) * 36}ms`);
-    image.style.zIndex = String(((index * 7) % count) + 1);
+    const rotation = rotations[index % rotations.length];
+    image.style.setProperty('--card-rotation', `${rotation}deg`);
+    image.style.setProperty('--card-rotation-end', `${rotation + ((index % 2 ? 1 : -1) * 0.8)}deg`);
+    image.style.setProperty('--card-y', `${offsets[index % offsets.length]}px`);
+    image.style.setProperty('--card-delay', `${-(index % 7) * 75}ms`);
     return image;
   });
   elements.coverStack.replaceChildren(...nodes);
@@ -2455,69 +2573,23 @@ function buildDrawCovers(list) {
 }
 
 function animateDrawArena(nodes, duration) {
-  const arena = elements.coverStack.getBoundingClientRect();
-  const radiusX = Math.max(125, Math.min(arena.width * 0.34, 410));
-  const radiusY = Math.max(90, Math.min(arena.height * 0.27, 185));
-  const total = Math.max(1, nodes.length);
-  const turn = Math.PI * 2;
-  const transformAt = (point, scale = 0.82) => `translate(-50%, -50%) translate3d(${point.x}px, ${point.y}px, 0) rotate(${point.rotation}deg) scale(${scale})`;
-  const orbitPoint = (index, phase) => {
-    const angle = ((index / total) * turn) + phase;
-    return {
-      x: Math.cos(angle) * radiusX,
-      y: Math.sin(angle) * radiusY,
-      rotation: ((angle * 180) / Math.PI) + 90,
-    };
-  };
-
-  return nodes.map((node, index) => {
-    const centeredIndex = index - ((total - 1) / 2);
-    const fanSpacing = Math.min(58, arena.width / Math.max(8, total + 1));
-    const columns = Math.ceil(Math.sqrt(total * 1.5));
-    const rows = Math.ceil(total / columns);
-    const column = index % columns;
-    const row = Math.floor(index / columns);
-    const gridSpacingX = Math.min(148, arena.width / (columns + 0.7));
-    const gridSpacingY = Math.min(150, arena.height / (rows + 0.8));
-    const deck = {
-      x: Number(node.dataset.deckX),
-      y: Number(node.dataset.deckY),
-      rotation: Number(node.dataset.deckRotation),
-    };
-    const fan = {
-      x: centeredIndex * fanSpacing,
-      y: (Math.abs(centeredIndex) * 4) - (radiusY * 0.35),
-      rotation: centeredIndex * 2.4,
-    };
-    const grid = {
-      x: (column - ((columns - 1) / 2)) * gridSpacingX,
-      y: (row - ((rows - 1) / 2)) * gridSpacingY,
-      rotation: 0,
-    };
-    const ribbon = {
-      x: centeredIndex * Math.min(66, arena.width / Math.max(7, total)),
-      y: Math.sin(index * 1.2) * radiusY * 0.72,
-      rotation: Math.cos(index * 1.2) * 7,
-    };
-    const collapse = {
-      x: Math.cos((index / total) * turn) * 5,
-      y: Math.sin((index / total) * turn) * 5,
-      rotation: ((index % 3) - 1) * 2,
-    };
-    return node.animate([
-      { transform: transformAt(deck, 0.72), opacity: 0.72, filter: 'brightness(0.62) saturate(0.74)', offset: 0 },
-      { transform: transformAt(fan, 0.64), opacity: 0.94, filter: 'brightness(0.78) saturate(0.88)', offset: 0.16 },
-      { transform: transformAt(grid, 0.54), opacity: 0.82, filter: 'brightness(0.68) saturate(0.8)', offset: 0.39 },
-      { transform: transformAt(orbitPoint(index, 2.05), 0.62), opacity: 0.92, filter: 'brightness(0.76) saturate(0.88)', offset: 0.63 },
-      { transform: transformAt(ribbon, 0.6), opacity: 0.86, filter: 'brightness(0.72) saturate(0.84)', offset: 0.82 },
-      { transform: transformAt(collapse, 0.72), opacity: 0.94, filter: 'brightness(0.9) saturate(0.94)', offset: 0.94 },
-      { transform: transformAt(collapse, 0.08), opacity: 0, filter: 'blur(5px) brightness(1.15)', offset: 1 },
-    ], {
-      duration,
-      easing: 'cubic-bezier(0.22, 0.72, 0.16, 1)',
-      fill: 'forwards',
-    });
+  const viewportWidth = elements.coverStack.parentElement.getBoundingClientRect().width;
+  const trackWidth = elements.coverStack.scrollWidth;
+  const startX = Math.min(viewportWidth * 0.16, 180);
+  const endX = Math.min(startX - (viewportWidth * 2.4), (viewportWidth * 0.72) - trackWidth);
+  const transformAt = (x) => `translate3d(${x}px, -50%, 0)`;
+  elements.coverStack.style.transform = transformAt(startX);
+  const animation = elements.coverStack.animate([
+    { transform: transformAt(startX), filter: 'blur(0)', opacity: 0.72, offset: 0 },
+    { transform: transformAt(startX - (viewportWidth * 0.75)), filter: 'blur(1.8px)', opacity: 0.96, offset: 0.2 },
+    { transform: transformAt(endX + (viewportWidth * 0.34)), filter: 'blur(1px)', opacity: 0.96, offset: 0.76 },
+    { transform: transformAt(endX), filter: 'blur(0)', opacity: 1, offset: 1 },
+  ], {
+    duration,
+    easing: 'cubic-bezier(0.12, 0.7, 0.12, 1)',
+    fill: 'forwards',
   });
+  return [animation];
 }
 
 function setDrawCountdown(value) {
@@ -2545,7 +2617,6 @@ function revealDrawWinner(selected) {
   elements.winnerPoster.replaceChildren(createPosterMedia(selected, 'w500'));
   elements.winnerCard.classList.remove('hidden');
   elements.drawStage.classList.add('has-winner', 'is-impact');
-  elements.drawCore.classList.add('draw-core--hidden');
   elements.drawStatus.textContent = 'SÉLECTIONNÉ';
   createDrawBurst();
   navigator.vibrate?.([25, 35, 55]);
@@ -2561,7 +2632,6 @@ async function playDrawAnimation(list, selected) {
   elements.winnerCard.classList.add('hidden');
   elements.drawStage.classList.remove('has-winner', 'is-drawing', 'is-impact', 'is-suspense');
   elements.drawStage.classList.add('is-arming');
-  elements.drawCore.classList.remove('draw-core--hidden');
   elements.drawBurst.replaceChildren();
   elements.drawStatus.textContent = 'PRÉPARATION';
   elements.drawButtonLabel.textContent = 'Préparation…';
@@ -2582,9 +2652,9 @@ async function playDrawAnimation(list, selected) {
 
   const animations = animateDrawArena(arena.nodes, duration);
   const statusTimers = [
-    window.setTimeout(() => { elements.drawStatus.textContent = 'RECOMPOSITION'; }, duration * 0.3),
-    window.setTimeout(() => { elements.drawStatus.textContent = 'ROTATION'; }, duration * 0.57),
-    window.setTimeout(() => { elements.drawStatus.textContent = 'VERROUILLAGE'; }, duration * 0.82),
+    window.setTimeout(() => { elements.drawStatus.textContent = 'DÉFILEMENT'; }, duration * 0.28),
+    window.setTimeout(() => { elements.drawStatus.textContent = 'RALENTISSEMENT'; }, duration * 0.68),
+    window.setTimeout(() => { elements.drawStatus.textContent = 'ARRÊT'; }, duration * 0.9),
   ];
 
   try {
@@ -2594,7 +2664,6 @@ async function playDrawAnimation(list, selected) {
   }
   elements.drawStage.classList.remove('is-drawing');
   elements.drawStage.classList.add('is-suspense');
-  elements.drawCore.classList.add('draw-core--hidden');
   elements.drawStatus.textContent = 'RÉVÉLATION';
   elements.drawButtonLabel.textContent = 'Verdict…';
   elements.coverStack.replaceChildren();
@@ -2679,6 +2748,10 @@ elements.tabs.forEach((tab) => {
     if (window.location.hash === `#${nextRoute}`) setRoute(nextRoute);
     else window.location.hash = nextRoute;
   });
+});
+elements.sessionProfileButton.addEventListener('click', () => {
+  if (window.location.hash === '#profile') setRoute('profile');
+  else window.location.hash = 'profile';
 });
 elements.profileShortcuts.forEach((shortcut) => {
   shortcut.addEventListener('click', () => {
@@ -2765,6 +2838,8 @@ elements.confirmMovieSelection.addEventListener('click', proposeMovie);
 elements.drawButton.addEventListener('click', drawMovie);
 elements.ratingModalBackdrop.addEventListener('click', closeRatingModal);
 elements.ratingModalClose.addEventListener('click', closeRatingModal);
+elements.ratingModalCommentForm.addEventListener('submit', saveSeenComment);
+elements.ratingModalCommentDelete.addEventListener('click', deleteSeenComment);
 elements.warningModalBackdrop.addEventListener('click', closeWarningModal);
 elements.warningModalClose.addEventListener('click', closeWarningModal);
 elements.deleteHistoryBackdrop.addEventListener('click', closeDeleteConfirmModal);
