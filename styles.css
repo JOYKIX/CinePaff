@@ -102,11 +102,7 @@
     inset: 0;
     overflow: hidden;
     pointer-events: none;
-    background:
-      linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px),
-      var(--black);
-    background-size: 96px 96px;
+    background: var(--black);
   }
 
   .ambient::after {
@@ -3390,10 +3386,6 @@
     :root {
       --header-height: calc(70px + env(safe-area-inset-top));
       --mobile-nav-height: calc(70px + env(safe-area-inset-bottom));
-    }
-
-    .ambient {
-      background-size: 64px 64px;
     }
 
     .app-page {
