@@ -1529,10 +1529,17 @@
   }
 
   .availability-layout {
+    min-width: 0;
     display: grid;
     grid-template-columns: minmax(300px, 390px) minmax(0, 1fr);
     gap: clamp(3rem, 8vw, 8rem);
     align-items: start;
+  }
+
+  .availability-editor,
+  .availability-overview {
+    min-width: 0;
+    max-width: 100%;
   }
 
   .availability-editor {
@@ -1676,6 +1683,7 @@
   }
 
   .availability-member {
+    min-width: 0;
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
     align-items: center;
@@ -1815,6 +1823,7 @@
   }
 
   .calendar-head {
+    min-width: 0;
     display: flex;
     justify-content: space-between;
     gap: 1rem;
@@ -1831,6 +1840,7 @@
   }
 
   .calendar-head__tools {
+    min-width: 0;
     display: flex;
     align-items: center;
     gap: 1rem;
@@ -1888,6 +1898,7 @@
   }
 
   .calendar-selection {
+    min-width: 0;
     min-height: 46px;
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
@@ -1904,6 +1915,7 @@
   }
 
   .calendar-selection strong {
+    min-width: 0;
     color: var(--ink-soft);
     font-size: 0.58rem;
     font-weight: 650;
@@ -1919,10 +1931,15 @@
 
   .availability-calendar-shell {
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
     overflow-x: auto;
+    overscroll-behavior-inline: contain;
     scroll-behavior: smooth;
     scrollbar-color: var(--violet) transparent;
     scrollbar-width: thin;
+    touch-action: pan-x pan-y;
+    -webkit-overflow-scrolling: touch;
   }
 
   .availability-calendar {
@@ -3526,10 +3543,30 @@
       margin-bottom: 1.25rem;
     }
 
+    #availabilityView {
+      width: 100%;
+      max-width: 100%;
+      overflow-x: clip;
+    }
+
+    .view-head--availability h2 {
+      max-width: 100%;
+      font-size: clamp(2.55rem, 11.5vw, 4.15rem);
+      overflow-wrap: anywhere;
+    }
+
     .selection-spotlight,
     .availability-spotlight {
       width: 100%;
+      max-width: 100%;
+      min-width: 0;
       margin-top: 0.5rem;
+    }
+
+    .availability-spotlight > strong {
+      overflow: visible;
+      text-overflow: clip;
+      white-space: normal;
     }
 
     .selection-spotlight {
@@ -3554,6 +3591,45 @@
       gap: 4rem;
     }
 
+    .availability-layout {
+      width: 100%;
+      max-width: 100%;
+      gap: 2.5rem;
+    }
+
+    .availability-form,
+    .availability-presets,
+    .segmented,
+    .day-picker,
+    .time-row,
+    .my-availability,
+    .availability-roster,
+    .availability-recommendations {
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .availability-presets button,
+    .segment,
+    .day-chip,
+    .time-row .field,
+    .time-row input {
+      min-width: 0;
+    }
+
+    .segment {
+      padding-inline: 0.45rem;
+    }
+
+    .time-row {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 0.55rem;
+    }
+
+    .time-row__separator {
+      display: none;
+    }
+
     .proposal-zone,
     .availability-editor {
       position: static;
@@ -3566,12 +3642,48 @@
 
     .calendar-head__tools {
       width: 100%;
-      justify-content: space-between;
+      display: block;
     }
 
     .calendar-selection {
-      position: sticky;
-      left: 0;
+      position: static;
+      width: 100%;
+    }
+
+    .calendar-selection strong {
+      overflow-wrap: anywhere;
+    }
+
+    .heat-legend {
+      display: none;
+    }
+
+    .schedule-jumps {
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0.3rem;
+    }
+
+    .schedule-jumps button {
+      min-width: 0;
+      min-height: 34px;
+      padding-inline: 0.25rem;
+    }
+
+    .availability-calendar-shell {
+      width: 100%;
+      max-width: 100%;
+      contain: inline-size;
+    }
+
+    .availability-calendar {
+      width: 1100px;
+      min-width: 1100px;
+    }
+
+    .schedule-cell {
+      height: 32px;
     }
 
     .poster-grid,
@@ -3788,6 +3900,36 @@
   }
 
   @media (max-width: 480px) {
+    .availability-spotlight {
+      padding-left: 0.9rem;
+    }
+
+    .availability-presets {
+      gap: 0.3rem;
+    }
+
+    .availability-presets button {
+      min-height: 52px;
+      padding-inline: 0.25rem;
+    }
+
+    .day-picker {
+      gap: 0.3rem;
+    }
+
+    .day-chip {
+      padding-inline: 0.25rem;
+    }
+
+    .availability-roster {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .availability-member strong {
+      max-width: none;
+    }
+
     .warning-switches {
       grid-template-columns: 1fr;
     }
@@ -3804,18 +3946,14 @@
       gap: 0.5rem;
     }
 
-    .heat-legend {
-      display: none;
+    .calendar-selection {
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: start;
     }
 
-    .schedule-jumps {
-      width: 100%;
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
-
-    .schedule-jumps button {
-      padding-inline: 0.25rem;
+    .calendar-selection button:not(.hidden) {
+      grid-column: 2;
+      justify-self: start;
     }
 
     .profile-identity {
