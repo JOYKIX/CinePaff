@@ -1,0 +1,22 @@
+export const publicAssets = [
+  "index.html",
+  "image/anipaff-night.png",
+  "src/anipaff-design.js",
+  "anipaff.html",
+  "styles.css",
+  "redesign.css",
+  "anipaff-styles.css",
+  "anipaff-redesign.css",
+  "site-switch.css",
+  "src/main.js",
+  "src/anipaff-main.js",
+  "src/anipaff-app.js",
+  "src/anipaff-database.js",
+  "src/account-data.js",
+  "src/site-switch.js",
+  "image/initial-d-legend.jpg",
+  "image/logocinepafftext.svg",
+  "image/logocinepafficon.svg",
+  "image/logoanipafftext.svg",
+  "image/logoanipafficon.svg"
+];

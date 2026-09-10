@@ -1,0 +1,11 @@
+{
+  "name": "cinepaff",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node serve.mjs",
+    "check": "node --check src/main.js && node --check src/anipaff-app.js && node --check src/anipaff-main.js && node --check src/account-data.js && node --check src/anipaff-database.js && node --check src/site-switch.js"
+  }
+}

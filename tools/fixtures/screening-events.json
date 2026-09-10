@@ -1,0 +1,59 @@
+{
+  "test4": {
+    "version": 1,
+    "type": "created",
+    "screeningId": "test3",
+    "at": 1788989641979,
+    "actor": "ALEX",
+    "screening": {
+      "movie": {
+        "title": "Drive",
+        "tmdbId": 64690,
+        "posterPath": "/whiplash.jpg"
+      },
+      "startsAt": 1789151400000,
+      "createdBy": "ALEX"
+    }
+  },
+  "test6": {
+    "version": 1,
+    "type": "updated",
+    "screeningId": "test3",
+    "at": 1788989643948,
+    "actor": "ALEX",
+    "screening": {
+      "movie": {
+        "title": "Drive",
+        "tmdbId": 64690,
+        "posterPath": "/whiplash.jpg"
+      },
+      "startsAt": 1789153200000,
+      "createdBy": "ALEX"
+    },
+    "previous": {
+      "movie": {
+        "title": "Drive",
+        "tmdbId": 64690,
+        "posterPath": "/whiplash.jpg"
+      },
+      "startsAt": 1789151400000,
+      "createdBy": "ALEX"
+    }
+  },
+  "test8": {
+    "version": 1,
+    "type": "deleted",
+    "screeningId": "test3",
+    "at": 1788989644988,
+    "actor": "ALEX",
+    "screening": {
+      "movie": {
+        "title": "Drive",
+        "tmdbId": 64690,
+        "posterPath": "/whiplash.jpg"
+      },
+      "startsAt": 1789153200000,
+      "createdBy": "ALEX"
+    }
+  }
+}
