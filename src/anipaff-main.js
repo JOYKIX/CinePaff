@@ -1,3 +1,4 @@
+import { validateRandomCriteria, matchesYear, matchesRange, matchesGenres, randomIndex, shuffled, cacheCatalogue, genreModeField, numberField } from './random-catalog.js?v=20260911-filters';
 // AniList catalogue: direct requests, no global fetch interception or TMDB key.
 const endpoint = 'https://graphql.anilist.co';
 const mediaFields = 'id type isAdult title { romaji english native } description(asHtml:false) coverImage { extraLarge large } bannerImage startDate { year month day } format status episodes duration genres averageScore siteUrl';
@@ -129,4 +130,162 @@ export function sameAnime(first,second) {
 }
 export function animeMetaLabel(media) {
   return [formatAnimeFormat(media.animeFormat),media.episodes ? media.episodes+' ép.' : '',formatAnimeStatus(media.animeStatus)].filter(Boolean).join(' · ');
+}
+
+// Labels only: available genres and themes always come from the active catalogue.
+const categoryLabels={
+  ...genres, 'Science Fiction':'Science-fiction','Slice of Life':'Tranche de vie',
+  'Martial Arts':'Arts martiaux','Super Power':'Super-pouvoirs','Historical':'Historique',
+  'School':'École','School Life':'Vie scolaire','Middle School':'Collège','High School':'Lycée',
+  'Time Travel':'Voyage dans le temps','Space':'Espace','Military':'Militaire','Vampires':'Vampires',
+  'Virtual Reality':'Réalité virtuelle','Post-Apocalyptic':'Post-apocalyptique','Coming of Age':'Passage à l’âge adulte',
+  'Police':'Police','Racing':'Courses automobiles','Cars':'Automobile','Demons':'Démons',
+  'Magic':'Magie','Friendship':'Amitié','Reincarnation':'Réincarnation','Revenge':'Vengeance',
+};
+const labelCategory=name=>categoryLabels[name]||name;
+const discoveryMetadataQuery='query DiscoveryFilters { GenreCollection MediaTagCollection { name isAdult } }';
+// AniList rejects comparison arguments set to null ("Illegal operator and value combination").
+// Compile only active arguments; values always remain in GraphQL variables.
+function randomAnimeRequest(values) {
+  const definitions=[
+    ['genre','String','genre'],['tag','String','tag'],
+    ['allGenres','[String]','genre_in'],['allTags','[String]','tag_in'],
+    ['from','FuzzyDateInt','startDate_greater'],['to','FuzzyDateInt','startDate_lesser'],
+    ['format','MediaFormat','format'],['status','MediaStatus','status'],
+    ['episodesFrom','Int','episodes_greater'],['episodesTo','Int','episodes_lesser'],
+    ['durationFrom','Int','duration_greater'],['durationTo','Int','duration_lesser'],
+    ['score','Int','averageScore_greater'],
+  ].filter(([key])=>values[key]!=null&&values[key]!==''&&(!Array.isArray(values[key])||values[key].length));
+  const declarations=['$page:Int!',...definitions.map(([key,type])=>'$'+key+':'+type)].join(',');
+  const argumentsList=['type:ANIME','isAdult:false','sort:ID',...definitions.map(([key,,argument])=>argument+':$'+key)].join(',');
+  return {
+    query:'query RandomAnime('+declarations+'){ Page(page:$page,perPage:50){ pageInfo { total lastPage } media('+argumentsList+'){ '+mediaFields+' tags { name rank isAdult } } } }',
+    variables:{page:values.page,...Object.fromEntries(definitions.map(([key])=>[key,values[key]]))},
+  };
+}
+function animeFields(provider){
+  return [
+    genreModeField,numberField('scoreMin','Note min. · /10',0,10,.1),
+    {key:'format',label:'Format',type:'select',options:provider==='AniList'?Object.entries(formats):[['TV','Série'],['movie','Film d’animation'],['OVA','OVA'],['ONA','ONA'],['special','Spécial']]},
+    {key:'status',label:'Statut',type:'select',options:provider==='AniList'?Object.entries(statuses):[['finished','Terminé'],['current','En cours'],['upcoming','À venir'],['unreleased','Pas encore sorti'],['tba','Date à annoncer']]},
+    numberField('episodesFrom','Épisodes min.',1,10000),numberField('episodesTo','Épisodes max.',1,10000),
+    numberField('durationFrom','Durée / ép. min. · minutes',1,1000),numberField('durationTo','Durée / ép. max. · minutes',1,1000),
+  ];
+}
+export const getAnimeDiscoveryFilters=cacheCatalogue(async()=>{
+  const signal=AbortSignal.timeout(25000);
+  if(Date.now()>=fallbackUntil){
+    try{
+      const data=await request(discoveryMetadataQuery,{},signal);
+      if(!data.GenreCollection?.length||!Array.isArray(data.MediaTagCollection))throw new Error('Filtres indisponibles.');
+      const main=data.GenreCollection.filter(name=>name!=='Hentai').map(name=>['genre:'+name,labelCategory(name)]);
+      const tags=data.MediaTagCollection.filter(tag=>!tag.isAdult&&tag.name).map(tag=>['tag:'+tag.name,labelCategory(tag.name)]);
+      return {source:'AniList',genreLabel:'Genres & thèmes',genres:[...main,...tags.sort((a,b)=>a[1].localeCompare(b[1],'fr'))],fields:animeFields('AniList')};
+    }catch(error){if(signal.aborted)throw error;fallbackUntil=Date.now()+600000;}
+  }
+  const all=[];
+  let offset=0,count=1;
+  while(offset<count){
+    const page=await requestKitsu('categories?page[limit]=40&page[offset]='+offset,signal);
+    if(!Array.isArray(page.data)||!Number.isFinite(page.meta?.count)||(!page.data.length&&offset<page.meta.count))throw new Error('Filtres indisponibles. Réessaie.');
+    all.push(...page.data);count=page.meta.count;offset+=page.data.length;
+    if(count>5000)throw new Error('Filtres indisponibles. Réessaie.');
+  }
+  const choices=[...new Map(all.filter(item=>item.type==='categories'&&!item.attributes.nsfw&&item.attributes.slug&&item.attributes.title).map(item=>[item.attributes.slug,[item.attributes.slug,labelCategory(item.attributes.title)]])).values()];
+  if(!choices.length)throw new Error('Filtres indisponibles. Réessaie.');
+  // Put common genres first; retain every remaining catalogue category below.
+  const mainNames=new Set(Object.values(genres));
+  choices.sort((a,b)=>Number(mainNames.has(b[1]))-Number(mainNames.has(a[1]))||a[1].localeCompare(b[1],'fr'));
+  return {source:'Kitsu',genreLabel:'Genres & thèmes',genres:choices,fields:animeFields('Kitsu')};
+});
+function kitsuCategories(item,included=[]){
+  const ids=new Set((item.relationships?.categories?.data||[]).map(category=>String(category.id)));
+  return included.filter(category=>category.type==='categories'&&ids.has(String(category.id)));
+}
+function matchesAnimeDetails(item,filters){
+  return matchesYear(item.release_date,filters)&&matchesRange(item.episodes,filters.episodesFrom,filters.episodesTo)&&matchesRange(item.episodeDuration,filters.durationFrom,filters.durationTo)&&matchesRange(item.anilistScore,filters.scoreMin==null?null:filters.scoreMin*10,null);
+}
+async function randomFromAniList(filters,signal,exclude){
+  const groups=filters.genreMode==='all'?[null]:shuffled(filters.genres.length?filters.genres:[null]);
+  for(const selected of groups){
+    const variables={
+      page:1,genre:selected?.startsWith('genre:')?selected.slice(6):null,tag:selected?.startsWith('tag:')?selected.slice(4):null,
+      allGenres:filters.genreMode==='all'&&filters.genres.some(id=>id.startsWith('genre:'))?filters.genres.filter(id=>id.startsWith('genre:')).map(id=>id.slice(6)):null,
+      allTags:filters.genreMode==='all'&&filters.genres.some(id=>id.startsWith('tag:'))?filters.genres.filter(id=>id.startsWith('tag:')).map(id=>id.slice(4)):null,
+      from:filters.yearFrom?filters.yearFrom*10000:null,to:filters.yearTo?(filters.yearTo+1)*10000:null,
+      format:filters.format||null,status:filters.status||null,
+      // Broaden inclusive bounds by one; validate the exact bounds on returned media.
+      episodesFrom:filters.episodesFrom==null?null:filters.episodesFrom-1,episodesTo:filters.episodesTo==null?null:filters.episodesTo+1,
+      durationFrom:filters.durationFrom==null?null:filters.durationFrom-1,durationTo:filters.durationTo==null?null:filters.durationTo+1,
+      score:filters.scoreMin==null?null:Math.round(filters.scoreMin*10)-1,
+    };
+    const active=randomAnimeRequest(variables);
+    const first=await request(active.query,active.variables,signal);
+    if(!first.Page||!Array.isArray(first.Page.media))throw new Error('Catalogue indisponible. Réessaie.');
+    if(!first.Page.media.length)continue;
+    const count=Math.max(1,Math.min(500,first.Page.pageInfo?.lastPage||Math.ceil((first.Page.pageInfo?.total||50)/50)));
+    for(const page of [...new Set([randomIndex(count)+1,randomIndex(count)+1,1])]){
+      signal?.throwIfAborted();
+      const data=page===1?first:await request(active.query,{...active.variables,page},signal);
+      const candidates=(data.Page?.media||[]).filter(item=>{
+        const categories=[...(item.genres||[]).map(name=>'genre:'+name),...(item.tags||[]).filter(tag=>!tag.isAdult&&tag.rank>=18).map(tag=>'tag:'+tag.name)];
+        return item.type==='ANIME'&&!item.isAdult&&item.format!=='MUSIC'&&matchesGenres(categories,filters)&&(!filters.format||item.format===filters.format)&&(!filters.status||item.status===filters.status);
+      }).map(item=>{
+        const media=convert(item);
+        const selectedNames=filters.genres.map(id=>labelCategory(id.slice(id.startsWith('genre:')?6:4)));
+        const tags=(item.tags||[]).filter(tag=>!tag.isAdult&&tag.rank>=18&&filters.genres.includes('tag:'+tag.name)).map(tag=>({id:'tag:'+tag.name,name:labelCategory(tag.name)}));
+        media.genres=[...media.genres,...tags].sort((a,b)=>Number(selectedNames.includes(b.name))-Number(selectedNames.includes(a.name)));
+        return media;
+      }).filter(item=>matchesAnimeDetails(item,filters)&&!exclude(item));
+      if(candidates.length)return candidates[randomIndex(candidates.length)];
+    }
+  }
+  return null;
+}
+async function randomFromKitsu(filters,signal,exclude){
+  const groups=filters.genreMode==='all'?[filters.genres.join(',')||null]:shuffled(filters.genres.length?filters.genres:[null]);
+  for(const category of groups){
+    const params=new URLSearchParams({'page[limit]':'20',include:'categories'});
+    if(category)params.set('filter[categories]',category);
+    const range=(key,from,to,multiplier=1)=>{
+      if(from!=null||to!=null)params.set('filter['+key+']',(from==null?'':from*multiplier)+'..'+(to==null?'':to*multiplier));
+    };
+    range('year',filters.yearFrom,filters.yearTo);
+    range('episodeCount',filters.episodesFrom,filters.episodesTo);
+    // Live Kitsu filtering uses seconds, while response episodeLength uses minutes.
+    range('episodeLength',filters.durationFrom,filters.durationTo,60);
+    range('averageRating',filters.scoreMin,null,10);
+    if(filters.format)params.set('filter[subtype]',filters.format);
+    if(filters.status)params.set('filter[status]',filters.status);
+    const getPage=async offset=>{const query=new URLSearchParams(params);query.set('page[offset]',offset);return requestKitsu('anime?'+query,signal);};
+    const first=await getPage(0);
+    if(!Array.isArray(first.data)||!Number.isFinite(first.meta?.count))throw new Error('Catalogue indisponible. Réessaie.');
+    if(!first.meta.count)continue;
+    const pages=Math.ceil(first.meta.count/20);
+    for(const page of [...new Set([randomIndex(pages),randomIndex(pages),0])]){
+      signal?.throwIfAborted();
+      const data=page===0?first:await getPage(page*20);
+      const candidates=(data.data||[]).filter(item=>item.type==='anime'&&!item.attributes.nsfw&&item.attributes.ageRating!=='R18'&&item.attributes.subtype!=='music'&&matchesGenres(kitsuCategories(item,data.included).map(category=>category.attributes.slug),filters)&&(!filters.format||item.attributes.subtype===filters.format)&&(!filters.status||item.attributes.status===filters.status)).map(item=>{
+        const media=convertKitsu(item);
+        media.genres=kitsuCategories(item,data.included).filter(category=>!category.attributes.nsfw).sort((a,b)=>Number(filters.genres.includes(b.attributes.slug))-Number(filters.genres.includes(a.attributes.slug))).map(category=>({id:category.id,name:labelCategory(category.attributes.title)}));
+        return media;
+      }).filter(item=>matchesAnimeDetails(item,filters)&&!exclude(item));
+      if(candidates.length){const chosen=candidates[randomIndex(candidates.length)];detailsCache.set(chosen.catalogId,Promise.resolve(chosen));return chosen;}
+    }
+  }
+  return null;
+}
+export async function randomAnime(criteria,{signal,exclude=()=>false}={}){
+  const schema=await getAnimeDiscoveryFilters();signal?.throwIfAborted();
+  const filters=validateRandomCriteria(criteria,schema);
+  if(schema.source==='Kitsu')return randomFromKitsu(filters,signal,exclude);
+  try{return await randomFromAniList(filters,signal,exclude);}
+  catch(error){
+    if(signal?.aborted)throw error;
+    // Never discard a provider-specific genre or theme during an outage.
+    const formatMap={TV:'TV',MOVIE:'movie',SPECIAL:'special',OVA:'OVA',ONA:'ONA'};
+    const statusMap={FINISHED:'finished',RELEASING:'current'};
+    if(filters.genres.length||(filters.format&&!formatMap[filters.format])||(filters.status&&!statusMap[filters.status]))throw error;
+    return randomFromKitsu({...filters,format:formatMap[filters.format]||'',status:statusMap[filters.status]||''},signal,exclude);
+  }
 }

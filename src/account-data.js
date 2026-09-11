@@ -14,6 +14,7 @@ export function accountChanges(data, oldId, nextId = null) {
   };
   for (const [prefix, club] of [['', data], ['anipaff/', data.anipaff || {}]]) {
     moveMapEntry(prefix + 'availability', club.availability);
+    for (const [key, choices] of Object.entries(club.interests || {})) moveMapEntry(prefix + 'interests/' + key, choices);
     const content = (path, media, proposal = false) => {
       if (!media) return;
       if (!nextId && proposal && media.proposedBy === oldId) { changes[path] = null; return; }
