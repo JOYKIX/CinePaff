@@ -4003,3 +4003,59 @@ h1,h2,h3,.pending-movie__title,.poster-card__fallback { font-weight:400; letter-
   .anime-session { gap:15px; }
   .anime-session .field { max-width:160px; }
 }
+
+/* Midnight anime club — expressive art, quiet controls. */
+body { background:#0e0b17; }
+#homeView { position:relative; }
+#homeView>.view-head { position:relative; padding-top:12px; margin-bottom:28px; }
+.anime-kicker { display:flex; align-items:center; gap:12px; color:#a99cad; font-family:var(--font-body); font-size:9px; font-weight:700; letter-spacing:.19em; margin-bottom:13px; }
+.anime-kicker [lang=ja] { color:var(--gold); font-size:15px; letter-spacing:.13em; }
+#homeView .view-head h2 { font-size:clamp(30px,3.7vw,55px); letter-spacing:-.045em; }
+#homeView .view-head h2 em { position:relative; display:inline-block; }
+#homeView .view-head h2 em::after { content:''; position:absolute; left:0; right:-4px; bottom:-7px; height:4px; background:linear-gradient(90deg,#ff5c9d,transparent); transform:rotate(-2deg); opacity:.5; clip-path:polygon(0 20%,100% 0,97% 70%,2% 100%); }
+#currentPick { isolation:isolate; min-height:470px; overflow:hidden; }
+.anime-hero-lettering { position:absolute; z-index:0; right:20px; top:5px; color:#fff; opacity:.045; font-size:clamp(80px,12vw,180px); line-height:1; letter-spacing:-.1em; font-weight:900; writing-mode:vertical-rl; pointer-events:none; }
+.now-playing__content { position:relative; z-index:3; }
+#currentPickPoster { transform:perspective(1100px) rotateY(-12deg) rotateZ(3deg); filter:drop-shadow(-15px 18px 24px #0006); }
+#currentPickPoster img { border-radius:3px; }
+.now-playing__eyebrow { font-family:var(--font-body); letter-spacing:.18em; }
+.hero-navigation button { border-radius:50%; background:#ffffff05; }
+.hero-navigation button:hover { background:#ff5c9d18; }
+.poster-card h3,.poster-card__title { font-family:var(--font-body); font-weight:700; letter-spacing:-.02em; line-height:1.5; }
+.anime-poster { transform-style:preserve-3d; transform:perspective(950px) rotateX(var(--tilt-x,0deg)) rotateY(var(--tilt-y,0deg)); transition:transform .25s ease,filter .25s ease; }
+.anime-poster:hover { filter:brightness(1.08); }
+.poster-card img { border-radius:5px; }
+.selection-sidebar { position:relative; }
+#searchForm .search-input { background:linear-gradient(100deg,#23182b9c,#17112155); }
+#screeningsView .view-head,#seenView .view-head,#availabilityView .view-head,#profileView .view-head,#drawsView .view-head { padding-top:14px; }
+#screeningsView .view-head h2,#seenView .view-head h2,#availabilityView .view-head h2,#profileView .view-head h2,#drawsView .view-head h2 { color:#f5e8f1; }
+.draw-stage { background:radial-gradient(ellipse at 50% 70%,#6b234122,transparent 70%); }
+.auth-cinema__art { width:100%; object-position:40% 50%; filter:saturate(.95) brightness(.95); }
+.auth-cinema::after { background:linear-gradient(90deg,#0e0b170a 0%,#0e0b171c 40%,#0e0b17c2 69%,#0e0b17ed),linear-gradient(0deg,#0e0b17cc,transparent 48%,#0e0b1750); }
+.auth-statement { bottom:85px; }
+.auth-statement h1 { font-size:clamp(55px,6.4vw,100px); text-shadow:0 5px 35px #0008; }
+.auth-caption { margin-top:22px; font-size:12px; font-family:var(--font-body); color:#d1bdcb; }
+.auth-heading h2 { font-size:35px; }
+.auth-form input { background:#23192c99; }
+.auth-form input:hover,.auth-form input:focus { background:#2b1d3599; }
+.auth-brand::after { display:none; }
+@media(min-width:1100px){ .auth-access { padding-top:40px; } }
+@media(max-width:680px){
+  #homeView>.view-head { gap:16px; align-items:flex-start; }
+  #homeView .view-head h2 { max-width:260px; font-size:34px; }
+  .anime-kicker { margin-bottom:10px; font-size:8px; gap:8px; }
+  .anime-kicker [lang=ja] { font-size:12px; }
+  #currentPick { min-height:355px; }
+  .anime-hero-lettering { right:0; font-size:90px; top:12px; }
+  #currentPickPoster { transform:perspective(900px) rotateY(-10deg) rotateZ(3deg); }
+  .auth-cinema { height:270px; flex-basis:270px; }
+  .auth-cinema__art { width:100%; height:400px; inset:-90px 0 auto; object-position:30% 50%; }
+  .auth-cinema::after { background:linear-gradient(0deg,#0e0b17 0%,#0e0b1730 45%,#0e0b1710 75%,#0e0b1770); }
+  .auth-statement { inset:auto 24px 14px; }
+  .auth-statement h1 { font-size:clamp(39px,11vw,55px); }
+  .auth-caption { margin-top:12px; font-size:10px; }
+}
+@media(prefers-reduced-motion:no-preference){
+ .anime-poster { animation:anime-cover-in .55s var(--enter-delay,0ms) both; }
+ @keyframes anime-cover-in { from{opacity:0;translate:0 14px} to{opacity:1;translate:0 0} }
+}

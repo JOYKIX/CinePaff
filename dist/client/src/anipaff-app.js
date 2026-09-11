@@ -1,5 +1,7 @@
+import { createRandomPicker } from './random-picker.js?v=20260911-filters';
+import { availabilityAudience, availabilityAudiences, mediaInterestKey, mediaInterest, participatesInAvailability } from './participation.js';
 import { createAniPaffDatabase } from './anipaff-database.js';
-import { searchAnime, getAnimeDetails, animeImageUrl, animeMetadata, animeMetaLabel, isAnimeSeries, formatAnimeFormat, formatAnimeStatus } from './anipaff-main.js';
+import { randomAnime, getAnimeDiscoveryFilters, searchAnime, getAnimeDetails, animeImageUrl, animeMetadata, animeMetaLabel, sameAnime, isAnimeSeries, formatAnimeFormat, formatAnimeStatus } from './anipaff-main.js?v=20260911-filterfix';
 import { changeSharedAccount } from './account-data.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js';
 import { getDatabase, get, set, push, remove, onValue } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-database.js';
@@ -213,8 +215,14 @@ let previewPaused = window.matchMedia('(prefers-reduced-motion: reduce)').matche
 let memoryUser = null;
 let currentUser = readStoredUser();
 let movies = {};
+let proposalDiscovery = null;
+let screeningDiscovery = null;
 let users = {};
 let availability = {};
+const clubId = 'anipaff';
+let interests = {};
+const pendingInterestUpdates = new Set();
+let availabilityAudienceSaving = false;
 let draw = null;
 let storedDraw = null;
 let testDraw = null;
@@ -941,14 +949,14 @@ function createMovieTitleRow(movie, options = {}) {
 }
 
 function getMovieDetailsCacheKey(movie) {
-  return movie.anilistId ? `anilist-${movie.anilistId}` : `movie-${getSeenMovieId(movie)}`;
+  return movie.catalogId ? `anime-${movie.catalogId}` : `movie-${getSeenMovieId(movie)}`;
 }
 
 async function fetchMovieDetails(movie) {
   const key=getMovieDetailsCacheKey(movie);
   if(movieDetailsCache.has(key))return movieDetailsCache.get(key);
-  if(!movie.anilistId)return null;
-  const details=await getAnimeDetails(movie.anilistId);
+  if(!movie.catalogId)return null;
+  const details=await getAnimeDetails(movie.catalogId);
   movieDetailsCache.set(key,details);
   return details;
 }
@@ -1109,7 +1117,7 @@ function renderMovieDetails(movie, details, state = 'ready') {
     createFact(isAnimeSeries(media)?'Par épisode':'Durée',formatRuntime(media.episodeDuration)),
     createFact('Statut',formatAnimeStatus(media.animeStatus)),
     createFact('Genre',genres),
-    createFact('AniList',media.anilistScore?media.anilistScore+' / 100':''),
+    createFact(media.catalogName||'Catalogue',media.anilistScore?ratingFormatter.format(media.anilistScore)+' / 100':''),
   ].filter(Boolean);
   if(state==='loading')facts.unshift(createFact('Infos','Chargement'));
   elements.ratingModalFacts.replaceChildren(...facts);
@@ -1118,9 +1126,11 @@ function renderMovieDetails(movie, details, state = 'ready') {
   const credits=[studio?'Studio : '+studio:'',getDirector(details)?'Réalisation : '+getDirector(details):'',getCast(details)?'Personnages : '+getCast(details):''].filter(Boolean);
   if(state==='error')credits.unshift('Fiche indisponible pour le moment.');
   elements.ratingModalCredits.replaceChildren(...credits.map(text=>{const item=document.createElement('span');item.textContent=text;return item}));
-  const id=movie.anilistId;
+  const id=movie.catalogId;
   elements.ratingModalImdb.classList.toggle('hidden',!id);
-  if(id)elements.ratingModalImdb.href='https://anilist.co/anime/'+id;
+  const url=details?.catalogUrl||movie.catalogUrl;
+  elements.ratingModalImdb.classList.toggle('hidden',!url);
+  if(url){elements.ratingModalImdb.href=url;elements.ratingModalImdb.querySelector('span:not(.material-symbols-rounded)')?.remove();elements.ratingModalImdb.replaceChildren(document.createTextNode('Voir sur '+(media.catalogName||'le catalogue')),createIcon('north_east'));}
 }
 
 async function loadMovieDetails(movie, requestId) {
@@ -1154,11 +1164,90 @@ function renderForcedDrawOptions() {
   elements.drawForcedMovie.disabled = drawInProgress || !candidates.length;
 }
 
+
+function getAvailabilityParticipants() {
+  return Object.keys(users).filter(userId => participatesInAvailability(users[userId], clubId, mediaInterest(interests, draw, userId)));
+}
+
+function createInterestControls(movie) {
+  const group = document.createElement('div');
+  group.className = 'interest-choices';
+  group.dataset.interestKey = mediaInterestKey(movie);
+  group.setAttribute('role', 'group');
+  group.setAttribute('aria-label', 'Ton envie pour ' + movie.title);
+  for (const [value, label, icon] of [[1, 'Intéressé', 'favorite'], [-1, 'Pas pour moi', 'close']]) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.interestValue = value;
+    button.setAttribute('aria-label', label + ' : ' + movie.title);
+    button.title = 'Cliquer à nouveau pour retirer ce choix';
+    const text = document.createElement('span');
+    text.textContent = label;
+    button.append(createIcon(icon), text);
+    button.addEventListener('click', () => saveMovieInterest(movie, value));
+    group.append(button);
+  }
+  return group;
+}
+
+function refreshInterestControls() {
+  document.querySelectorAll('[data-interest-key]').forEach(group => {
+    const key = group.dataset.interestKey;
+    const value = interests[key]?.[currentUser?.id] ?? null;
+    group.closest('.selection-card')?.classList.toggle('is-declined', value === -1);
+    group.querySelectorAll('[data-interest-value]').forEach(button => {
+      button.setAttribute('aria-pressed', String(Number(button.dataset.interestValue) === value));
+      button.disabled = !currentUser || pendingInterestUpdates.has(key);
+    });
+  });
+}
+
+async function saveMovieInterest(movie, value) {
+  if (!currentUser) return;
+  const key = mediaInterestKey(movie);
+  if (pendingInterestUpdates.has(key)) return;
+  const next = mediaInterest(interests, movie, currentUser.id) === value ? null : value;
+  pendingInterestUpdates.add(key);
+  refreshInterestControls();
+  try {
+    await update(ref(db, 'interests/' + key), { [currentUser.id]: next });
+    setMessage(next === -1 ? 'Tu ne comptes pas dans les dispos pour ce titre.' : next === 1 ? 'Envie enregistrée' : 'Choix retiré');
+  } catch {
+    setMessage('Impossible d’enregistrer ton choix. Réessaie.');
+  } finally {
+    pendingInterestUpdates.delete(key);
+    refreshInterestControls();
+  }
+}
+
+async function saveAvailabilityAudience() {
+  if (!currentUser || availabilityAudienceSaving) return;
+  const select = document.querySelector('#profileAvailabilityAudience');
+  const status = document.querySelector('#profileAvailabilityStatus');
+  const value = select.value;
+  if (!availabilityAudiences.includes(value)) return;
+  availabilityAudienceSaving = true;
+  select.disabled = true;
+  status.classList.remove('is-error');
+  status.textContent = 'Enregistrement…';
+  try {
+    await update(ref(db, 'users/' + currentUser.id), { availabilityAudience: value });
+    status.textContent = 'Enregistré';
+  } catch {
+    status.classList.add('is-error');
+    status.textContent = 'Enregistrement impossible. Réessaie.';
+  } finally {
+    availabilityAudienceSaving = false;
+    select.disabled = false;
+    select.value = availabilityAudience(users[currentUser.id]);
+  }
+}
+
 function createSelectionMovieCard(movie, { secondary = false } = {}) {
   const item = document.createElement('article');
-  item.className = `poster-card${secondary ? ' poster-card--secondary' : ''}`;
+  item.className = `poster-card selection-card${secondary ? ' poster-card--secondary' : ''}`;
   item.append(createCardButton(movie, `Voir la fiche de ${movie.title}`, () => openRatingModal(movie, { allowRating: false })));
-  item.append(createSelectionSeenButton(movie));
+  item.append(createSelectionSeenButton(movie), createInterestControls(movie));
   const warningButton = createWarningButton(movie);
   if (warningButton) item.append(warningButton);
   return item;
@@ -1175,7 +1264,7 @@ function renderMovies() {
       || (a.createdAt || 0) - (b.createdAt || 0);
   };
   const allPrimary = getSelectionMovies();
-  const matchesFilter = (movie) => selectionFilter === 'mine' ? movie.proposedBy === currentUser?.id : selectionFilter === 'unseen' ? !getMovieSeenUserIds(movie).includes(currentUser?.id) : true;
+  const matchesFilter = (movie) => selectionFilter === 'interested' ? mediaInterest(interests, movie, currentUser?.id) === 1 : selectionFilter === 'mine' ? movie.proposedBy === currentUser?.id : selectionFilter === 'unseen' ? !getMovieSeenUserIds(movie).includes(currentUser?.id) : true;
   const primaryList = allPrimary.filter(matchesFilter).sort(sortMovies);
   const primaryKeys = new Set(allPrimary.map((movie) => movie.key));
   const secondaryList = movieArray()
@@ -1183,6 +1272,7 @@ function renderMovies() {
     .sort(sortMovies);
   const ownMovies = proposedMovies();
   const canPropose = canProposeMovie();
+  proposalDiscovery?.setEnabled(canPropose && !proposalSaving);
   const eligibleParticipants = getParticipantPools({ excludeLastDrawn: !keepSelectionOnDraw }).length;
   const totalMovies = movieArray().length;
   document.querySelector('#clubStats').textContent = `${totalMovies} anime${totalMovies > 1 ? 's' : ''} · ${allPrimary.length} membre${allPrimary.length > 1 ? 's' : ''}`;
@@ -1208,6 +1298,7 @@ function renderMovies() {
     ? primaryList.map((movie) => createSelectionMovieCard(movie))
     : [createEmptyState(selectionFilter === 'all' ? 'Aucun anime en sélection' : 'Aucun anime pour ce filtre')]));
   elements.secondaryMovieList.replaceChildren(...secondaryList.map((movie) => createSelectionMovieCard(movie, { secondary: true })));
+  refreshInterestControls();
 }
 
 function createEmptyState(text) {
@@ -1502,7 +1593,7 @@ async function renderCurrentPickHero(movie) {
   poster.querySelector('img')?.setAttribute('loading', 'eager');
   const cached = movieDetailsCache.get(heroKey);
   setCurrentPickArtwork(movie, cached);
-  if (cached || !movie?.anilistId) return;
+  if (cached || !movie?.catalogId) return;
   try {
     const details = await fetchMovieDetails(movie);
     if (requestId !== selectionHeroRequestId || selectionHeroActiveKey !== heroKey) return;
@@ -1541,7 +1632,7 @@ function getRatingCount(movie) {
 }
 
 function getSeenMovieId(movie) {
-  return movie.anilistId || `${movie.title}-${movie.posterPath}`;
+  return movie.catalogId || `${movie.title}-${movie.posterPath}`;
 }
 
 function normalizeSeenMovie(historyKey, movie) {
@@ -1743,6 +1834,8 @@ function openRatingModal(movie, options = {}) {
   activeSeenMovie = allowRating ? movie : null;
   activeMovieDetailsKey = getMovieDetailsCacheKey(movie);
   movieOverviewExpanded = false;
+  document.querySelector('#ratingModalInterest').replaceChildren(createInterestControls(movie));
+  refreshInterestControls();
   const requestId = ++movieDetailsRequestId;
   elements.ratingModalTitle.textContent = movie.title;
   elements.ratingModalAttribution.textContent = movie.proposedBy ? `Proposé par ${movie.proposedBy}` : '';
@@ -2086,7 +2179,7 @@ function renderAvailabilityList() {
 
 function getAvailabilityRuntimeState() {
   const storedRuntime = normalizeRuntimeMinutes(draw?.runtime);
-  const currentDrawKey = draw?.anilistId ? `anilist-${draw.anilistId}` : '';
+  const currentDrawKey = draw?.catalogId ? `anime-${draw.catalogId}` : '';
   const resolvedRuntime = drawRuntimeKey === currentDrawKey ? normalizeRuntimeMinutes(drawRuntimeMinutes) : null;
   const exactRuntime = storedRuntime || resolvedRuntime;
   return {
@@ -2110,7 +2203,9 @@ function getDrawRuntimeLabel() {
 function buildAvailabilityIntervals() {
   const today = new Date(startOfDay(new Date()));
   const intervalsByUser = new Map();
+  const participants = new Set(getAvailabilityParticipants());
   Object.entries(availability).forEach(([userId, userEntries]) => {
+    if (!participants.has(userId)) return;
     Object.values(userEntries || {}).forEach((entry) => {
       const startMinutes = entry.allDay ? 0 : parseTimeMinutes(entry.start);
       const endMinutes = entry.allDay ? 1440 : parseTimeMinutes(entry.end);
@@ -2191,7 +2286,7 @@ function createInitialAvatar(userId, compact = false) {
 }
 
 function renderAvailabilityRoster() {
-  const members = Object.keys(users).sort((a, b) => a.localeCompare(b));
+  const members = getAvailabilityParticipants().sort((a, b) => a.localeCompare(b));
   elements.availabilityRoster.replaceChildren(...members.map((userId) => {
     const entries = getUserAvailabilityEntries(userId);
     const item = document.createElement('div');
@@ -2209,7 +2304,7 @@ function renderAvailabilityRoster() {
 }
 
 function renderAvailabilityRecommendations() {
-  const totalUsers = Math.max(1, Object.keys(users).length);
+  const totalUsers = Math.max(1, getAvailabilityParticipants().length);
   elements.availabilityRuntime.textContent = getDrawRuntimeLabel();
   elements.availabilityBestPeople.replaceChildren();
 
@@ -2341,7 +2436,7 @@ function scrollAvailabilityCalendarToHour(hour) {
 function renderAvailabilityCalendar() {
   const today = new Date(startOfDay(new Date()));
   const intervalsByUser = buildAvailabilityIntervals();
-  const maxUsers = Math.max(1, Object.keys(users).length, intervalsByUser.size);
+  const maxUsers = Math.max(1, getAvailabilityParticipants().length);
   const scheduleStart = 0;
   const scheduleEnd = 24 * 60;
   const step = availabilityStepMinutes;
@@ -2414,6 +2509,10 @@ function renderAvailabilityCalendar() {
 
 function renderAvailability() {
   if (!currentUser) return;
+  const notice = document.querySelector('#availabilityParticipationNotice');
+  const audience = availabilityAudience(users[currentUser.id]);
+  notice.textContent = audience !== 'both' && audience !== clubId ? 'Ton profil est masqué des dispos sur ce site. Réglage dans ton profil.' : mediaInterest(interests, draw, currentUser.id) === -1 ? 'Pas pour toi : tes dispos ne comptent pas pour ce titre. Tu peux changer d’avis dans sa fiche.' : '';
+  notice.classList.toggle('hidden', !notice.textContent);
   setAvailabilityMode(availabilityMode);
   setAvailabilityAllDay(availabilityAllDay);
   renderAvailabilityList();
@@ -2468,8 +2567,8 @@ function clearDrawRuntimeRetry() {
 
 function applyDrawRuntime(movie, value, { persist = true } = {}) {
   const runtime = normalizeRuntimeMinutes(value);
-  const movieKey = movie?.anilistId ? `anilist-${movie.anilistId}` : '';
-  const currentDrawKey = draw?.anilistId ? `anilist-${draw.anilistId}` : '';
+  const movieKey = movie?.catalogId ? `anime-${movie.catalogId}` : '';
+  const currentDrawKey = draw?.catalogId ? `anime-${draw.catalogId}` : '';
   if (!runtime || !movieKey || movieKey !== currentDrawKey) return false;
 
   const shouldPersist = normalizeRuntimeMinutes(draw.runtime) !== runtime;
@@ -2483,7 +2582,7 @@ function applyDrawRuntime(movie, value, { persist = true } = {}) {
   if (persist && shouldPersist) {
     update(ref(db, 'draw/current'), { runtime }).catch((error) => {
       console.warn('[cinepaff:runtime] impossible de mémoriser la durée exacte', {
-        anilistId: movie.anilistId,
+        catalogId: movie.catalogId,
         message: error?.message || String(error),
       });
     });
@@ -2492,7 +2591,7 @@ function applyDrawRuntime(movie, value, { persist = true } = {}) {
 }
 
 async function refreshDrawRuntime() {
-  const nextKey = draw?.anilistId ? `anilist-${draw.anilistId}` : '';
+  const nextKey = draw?.catalogId ? `anime-${draw.catalogId}` : '';
   if (!nextKey) {
     clearDrawRuntimeRetry();
     drawRuntimeKey = '';
@@ -2521,13 +2620,13 @@ async function refreshDrawRuntime() {
   renderAvailability();
   try {
     const runtime = await fetchMovieRuntime(draw);
-    if (drawRuntimeKey !== nextKey || !draw || `anilist-${draw.anilistId}` !== nextKey) return;
+    if (drawRuntimeKey !== nextKey || !draw || `anime-${draw.catalogId}` !== nextKey) return;
     applyDrawRuntime(draw, runtime);
   } catch (error) {
     if (drawRuntimeKey === nextKey) {
       renderAvailability();
       console.warn('[cinepaff:runtime] durée TMDB indisponible, estimation provisoire conservée', {
-        anilistId: draw?.anilistId,
+        catalogId: draw?.catalogId,
         tentative: drawRuntimeRetryCount + 1,
         message: error?.message || String(error),
       });
@@ -2546,6 +2645,7 @@ async function refreshDrawRuntime() {
 }
 
 function renderProfile() {
+  if (!availabilityAudienceSaving) document.querySelector('#profileAvailabilityAudience').value = availabilityAudience(users[currentUser.id]);
   const role = getRoleLabel(currentUser);
   elements.profileName.textContent = currentUser.id;
   elements.profileRole.textContent = role;
@@ -2815,6 +2915,7 @@ function canManageScreening(event) {
 
 function closeScreeningEditor({ focus = true } = {}) {
   if (screeningSaving) return;
+  screeningDiscovery?.setMode('search');
   window.clearTimeout(screeningSearchTimer);
   screeningSearchController?.abort();
   screeningUI.screeningForm.classList.add('hidden');
@@ -2922,28 +3023,6 @@ async function searchScreeningMovies() {
 
 // Save each announcement with the screening in one atomic Firebase update.
 // A deletion keeps its anime/date snapshot in the queue for the Discord bot.
-function screeningNotificationSnapshot(screening) {
-  return {
-    movie: {
-      title: screening.movie.title,
-      anilistId: screening.movie.anilistId || null,
-      posterPath: screening.movie.posterPath || '',
-    },
-    startsAt: screening.startsAt,
-    episodeStart:screening.episodeStart||null,episodeEnd:screening.episodeEnd||null,
-    createdBy: screening.createdBy,
-  };
-}
-
-function addScreeningNotification(changes, type, key, screening, previous = null) {
-  const notificationKey = push(ref(db, 'screeningEvents')).key;
-  changes[`screeningEvents/${notificationKey}`] = {
-    version: 1, type, screeningId: key, at: Date.now(), actor: currentUser.id,
-    screening: screeningNotificationSnapshot(screening),
-    ...(previous ? { previous: screeningNotificationSnapshot(previous) } : {}),
-  };
-}
-
 async function saveScreening(event) {
   event.preventDefault();
   if(!currentUser||screeningSaving)return;
@@ -2969,10 +3048,6 @@ async function saveScreening(event) {
       episodeEnd:isAnimeSeries(screeningMovie)?episodeEnd:null,
     };
     const changes = { [`screenings/${key}`]: data };
-    // Opening and saving an unchanged form does not publish another message.
-    if (!previous || previous.startsAt !== startsAt || previous.movie.anilistId !== data.movie.anilistId || previous.movie.title !== data.movie.title || previous.episodeStart !== data.episodeStart || previous.episodeEnd !== data.episodeEnd) {
-      addScreeningNotification(changes, previous ? 'updated' : 'created', key, data, previous);
-    }
     await Promise.all([update(ref(db), changes), new Promise(resolve=>window.setTimeout(resolve,500))]);
     setMessage(editingScreeningKey?'Soirée modifiée':'Soirée programmée');screeningSaving=false;closeScreeningEditor();
   }catch{error.textContent='Impossible d’enregistrer la soirée. Réessaie.';}
@@ -2985,7 +3060,6 @@ async function deleteScreening(key) {
   deletingScreenings.add(key);
   try {
     const changes = { [`screenings/${key}`]: null };
-    addScreeningNotification(changes, 'deleted', key, screenings[key]);
     await update(ref(db), changes);
     closeDeleteConfirmModal(); setMessage('Soirée annulée');
   } catch { setMessage('Impossible d’annuler cette soirée'); }
@@ -3079,7 +3153,7 @@ function scheduleMovieSearch() {
 }
 
 function createMovieButton(movie) {
-  const alreadyAdded = proposedMovies().some(item => item.anilistId === movie.id);
+  const alreadyAdded = proposedMovies().some(item => sameAnime(item,movie));
   const button = document.createElement('button');
   button.className = 'movie';
   button.type = 'button';
@@ -3108,8 +3182,8 @@ function createMovieButton(movie) {
 function movieFromSearchResult(movie) {
   return {
     ...animeMetadata(movie),
-    key: `anilist-${movie.id}`,
-    anilistId: movie.id,
+    key: `anime-${movie.id}`,
+    catalogId: movie.id,
     title: movie.title,
     originalTitle: movie.original_title || movie.title,
     posterPath: movie.poster_path || '',
@@ -3223,7 +3297,7 @@ async function proposeMovie() {
     return;
   }
   if (!pendingMovie || proposalSaving) return;
-  if (ownMovies.some((movie) => movie.anilistId && movie.anilistId === pendingMovie.anilistId)) {
+  if (ownMovies.some((movie) => movie.catalogId && movie.catalogId === pendingMovie.catalogId)) {
     setMessage('Cet anime est déjà dans ta sélection');
     return;
   }
@@ -3233,6 +3307,7 @@ async function proposeMovie() {
     .map((warning) => ({ id: warning.id, label: warning.label }));
 
   proposalSaving = true;
+  proposalDiscovery?.setEnabled(false);
   elements.confirmMovieSelection.disabled = true;
   elements.confirmMovieSelection.setAttribute('aria-busy', 'true');
   elements.confirmMovieSelection.querySelector('span').textContent = 'Ajout…';
@@ -3242,7 +3317,7 @@ async function proposeMovie() {
   try {
     const movieData = {
       ...animeMetadata(pendingMovie),
-      anilistId: pendingMovie.anilistId,
+      catalogId: pendingMovie.catalogId,
       title: pendingMovie.title,
       originalTitle: pendingMovie.originalTitle,
       posterPath: pendingMovie.posterPath,
@@ -3269,6 +3344,7 @@ async function proposeMovie() {
     setMessage('Impossible d’ajouter l’anime. Réessaie.');
   } finally {
     proposalSaving = false;
+    proposalDiscovery?.setEnabled(canProposeMovie());
     elements.confirmMovieSelection.disabled = false;
     elements.confirmMovieSelection.removeAttribute('aria-busy');
     elements.confirmMovieSelection.querySelector('span').textContent = 'Ajouter à mes animes';
@@ -3511,7 +3587,8 @@ function normalizeSearch(value) {
   return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('fr').trim();
 }
 function focusMovieSearch() {
-  if (!canProposeMovie()) { setMessage('Tu ne peux pas proposer de anime pour le moment.'); return; }
+  proposalDiscovery?.setMode('search');
+  if (!canProposeMovie()) { setMessage('Tu ne peux pas proposer d’anime pour le moment.'); return; }
   elements.movieQuery.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'center' });
   elements.movieQuery.focus({ preventScroll: true });
 }
@@ -3786,6 +3863,39 @@ window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !elements.ratingModal.classList.contains('hidden')) closeRatingModal();
 });
 
+
+function setupRandomDiscovery() {
+  const ownDuplicate = movie => proposedMovies().some(existing => sameAnime(existing,movie));
+  const common = {
+    kind: 'anime',
+    loadFilters: getAnimeDiscoveryFilters,
+    createArtwork: movie => createPosterMedia(movieFromSearchResult(movie),'w342'),
+    describe: movie => [formatYear(movie.release_date),animeMetaLabel(movie)].filter(Boolean).join(' · '),
+  };
+  const discover = (filters,{signal,recent},selection) => {
+    const exclude = movie => recent.includes(String(movie.id)) || (selection && ownDuplicate(movie));
+    return randomAnime(filters,{signal,exclude});
+  };
+  proposalDiscovery = createRandomPicker({
+    ...common,id:'proposalDiscovery',host:document.querySelector('.proposal-zone'),
+    searchNodes:[elements.searchForm,document.querySelector('#searchStatus'),elements.results],
+    discover:(filters,options)=>discover(filters,options,true),
+    onRandomMode:()=>resetMovieSearch(),
+    canChoose:movie=>!canProposeMovie()?'Tu ne peux pas ajouter de proposition pour le moment.':ownDuplicate(movie)?'Déjà dans tes propositions.':'',
+    onChoose:movie=>selectPendingMovie(movie),
+  });
+  screeningDiscovery = createRandomPicker({
+    ...common,id:'screeningDiscovery',host:document.querySelector('.screening-movie-picker'),
+    searchNodes:[screeningUI.screeningQuery.closest('label'),screeningUI.screeningSearchStatus,screeningUI.screeningResults],
+    discover:(filters,options)=>discover(filters,options,false),
+    onRandomMode:()=>{window.clearTimeout(screeningSearchTimer);screeningSearchController?.abort();screeningUI.screeningQuery.value='';screeningUI.screeningResults.replaceChildren();screeningUI.screeningSearchStatus.textContent='';},
+    canChoose:()=>!currentUser||screeningSaving?'Cette soirée n’est pas modifiable pour le moment.':'',
+    onChoose:movie=>{screeningMovie=movieFromSearchResult(movie);screeningUI.screeningFormError.textContent='';renderScreeningSelection();screeningUI.screeningDateTime.focus({preventScroll:true});},
+  });
+}
+
+setupRandomDiscovery();
+
 onValue(ref(db, 'movies'), (snapshot) => {
   movies = snapshot.val() || {};
   if (currentUser) {
@@ -3800,7 +3910,7 @@ onValue(ref(db, 'users'), (snapshot) => {
 onValue(ref(db, 'draw/current'), (snapshot) => {
   storedDraw = snapshot.val();
   draw = storedDraw?.isTestDraw ? (lastDrawn?.isTestDraw ? null : lastDrawn) : storedDraw;
-  if (currentUser) renderDraw();
+  if (currentUser) { renderDraw(); renderAvailability(); }
   refreshDrawRuntime();
 });
 onValue(ref(db, 'draw/lastDrawn'), (snapshot) => {
@@ -3820,6 +3930,16 @@ onValue(ref(db, 'draw/history'), (snapshot) => {
     renderProfile();
   }
 });
+
+document.querySelector('#profileAvailabilityAudience').addEventListener('change', saveAvailabilityAudience);
+
+onValue(ref(db, 'interests'), (snapshot) => {
+  interests = snapshot.val() || {};
+  if (!currentUser) return;
+  if (selectionFilter === 'interested') renderMovies();
+  refreshInterestControls();
+  renderAvailability();
+}, () => setMessage('Tes envies ne sont pas accessibles. Réessaie dans un instant.'));
 
 onValue(ref(db, 'availability'), (snapshot) => {
   availability = snapshot.val() || {};

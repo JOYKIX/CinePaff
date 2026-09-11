@@ -881,7 +881,7 @@
     place-items: center;
     border-radius: 50%;
     color: #0e0b17;
-    background: #dfff5f;
+    background: #ff5c9d;
     font-family: var(--font-display);
     font-size: 0.68rem;
     font-weight: 700;
@@ -2059,7 +2059,7 @@
     border: 1px solid rgba(9, 10, 24, 0.38);
     border-radius: 50%;
     color: #0e0b17;
-    background: #dfff5f;
+    background: #ff5c9d;
     font-family: var(--font-display);
     font-size: 0.5rem;
     font-weight: 700;
@@ -2077,7 +2077,7 @@
     height: 24px;
     border-color: var(--black);
     color: #0e0b17;
-    background-color: #dfff5f;
+    background-color: #ff5c9d;
   }
 
   .availability-avatar--compact.has-image {
@@ -2686,7 +2686,7 @@
     width: clamp(82px, 8vw, 108px);
     height: clamp(82px, 8vw, 108px);
     color: #0e0b17;
-    background-color: #dfff5f;
+    background-color: #ff5c9d;
     font-family: var(--font-display);
     font-size: clamp(1.4rem, 3vw, 2.4rem);
     position: relative;
@@ -3412,7 +3412,7 @@
     place-items: center;
     border-radius: 50%;
     color: #0e0b17;
-    background-color: #dfff5f;
+    background-color: #ff5c9d;
     background-position: center;
     background-size: cover;
     font-family: var(--font-display);
@@ -3827,7 +3827,7 @@
     }
 
     .tab.active {
-      color: #dfff5f;
+      color: #ff5c9d;
       background: transparent;
     }
 
@@ -3862,7 +3862,7 @@
       place-items: center;
       border-radius: 50%;
       color: #0e0b17;
-      background: #dfff5f;
+      background: #ff5c9d;
       background-position: center;
       background-size: cover;
       font-family: var(--font-display);
@@ -3873,7 +3873,7 @@
     }
 
     .tab--profile.active .tab__profile-avatar {
-      box-shadow: 0 0 0 1px var(--black), 0 0 0 3px #dfff5f;
+      box-shadow: 0 0 0 1px var(--black), 0 0 0 3px #ff5c9d;
     }
 
     .session {

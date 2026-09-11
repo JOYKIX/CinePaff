@@ -26,12 +26,12 @@
 
     <link
       rel="stylesheet"
-      href="./anipaff-styles.css?v=2"
+      href="./anipaff-styles.css?v=20260911"
     />
 
     <link
       rel="stylesheet"
-      href="./anipaff-redesign.css?v=2"
+      href="./anipaff-redesign.css?v=20260911"
     />
 
     <link
@@ -39,7 +39,10 @@
       href="./image/logoanipafficon.svg?v=1"
       type="image/svg+xml"
     />
-  <link rel="stylesheet" href="./site-switch.css?v=1" />
+  <link rel="stylesheet" href="./site-switch.css?v=20260911" />
+    <link rel="stylesheet" href="selection.css?v=20260911" />
+  <link rel="stylesheet" href="menus.css?v=20260911" />
+  <link rel="stylesheet" href="./random-picker.css?v=1" />
   </head>
 
   <body>
@@ -745,7 +748,7 @@
                   02
                 </span>
 
-                <h3>Les animes</h3>
+                <h3>La sélection</h3>
 
                 <span
                   class="metric section-intro__metric"
@@ -765,25 +768,20 @@
                     class="is-active"
                     data-selection-filter="all"
                     aria-pressed="true"
-                  >
-                    Tous les animes
-                  </button>
+                  >Tous</button>
 
                   <button
                     type="button"
                     data-selection-filter="mine"
                     aria-pressed="false"
-                  >
-                    Mes propositions
-                  </button>
+                  >Les miens</button>
 
                   <button
                     type="button"
                     data-selection-filter="unseen"
                     aria-pressed="false"
-                  >
-                    Pas encore vus
-                  </button>
+                  >Pas vus</button>
+                  <button type="button" data-selection-filter="interested" aria-pressed="false">Mes envies</button>
                 </div>
 
                 <label class="sort-control">
@@ -820,7 +818,7 @@
                 >
                   <header class="movie-pool__head">
                     <h4 id="primaryMoviesTitle">
-                      Les premiers choix
+                      Pour le prochain tirage
                     </h4>
 
                     <span id="primaryMovieCount">
@@ -841,7 +839,7 @@
                 >
                   <header class="movie-pool__head">
                     <h4 id="secondaryMoviesTitle">
-                      Et aussi, dans vos listes
+                      À garder sous le coude
                     </h4>
 
                     <span id="secondaryMovieCount">
@@ -1119,6 +1117,7 @@
                 </div>
               </div>
 
+              <p id="availabilityParticipationNotice" class="participation-notice hidden" role="status"></p>
               <div
                 class="availability-roster"
                 id="availabilityRoster"
@@ -1790,6 +1789,17 @@
                     </button>
                   </form>
 
+                  <div class="profile-availability-preference">
+                    <label for="profileAvailabilityAudience">Afficher mes dispos sur</label>
+                    <select id="profileAvailabilityAudience" aria-describedby="profileAvailabilityHint">
+                      <option value="both">CinePaff et AniPaff</option>
+                      <option value="cinepaff">CinePaff uniquement</option>
+                      <option value="anipaff">AniPaff uniquement</option>
+                      <option value="none">Aucun des deux</option>
+                    </select>
+                    <small id="profileAvailabilityHint">Tes créneaux restent enregistrés.</small>
+                    <small id="profileAvailabilityStatus" role="status"></small>
+                  </div>
                   <div class="profile-actions">
                     <button
                       class="profile-action"
@@ -2174,6 +2184,7 @@
               <small
                 id="ratingModalAttribution"
               ></small>
+              <div id="ratingModalInterest"></div>
             </aside>
 
             <div class="rating-modal__meta">
@@ -2745,7 +2756,7 @@
 
     <script
       type="module"
-      src="./src/anipaff-app.js?v=2"
+      src="./src/anipaff-app.js?v=20260911-filterfix"
     ></script>
   <script type="module" src="./src/site-switch.js?v=1"></script>
   <script type="module" src="./src/anipaff-design.js?v=1"></script>

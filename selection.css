@@ -1,0 +1,91 @@
+/* Shared structure; each club keeps its own type and accent palette. */
+.selection-layout { gap: 52px; }
+.proposal-zone { gap: 16px; padding: 10px 0 0; }
+.proposal-zone .section-intro { margin-bottom: 0; }
+.proposal-zone .section-intro h3 { font-size: 21px; }
+.proposal-zone .search { background: linear-gradient(100deg, color-mix(in srgb, var(--violet) 9%, var(--black)), transparent); border-radius: 9px; }
+.proposal-zone .search input { min-height: 60px; }
+.proposal-zone .proposal-preview,
+.proposal-zone:has(.results:not(:empty)) .proposal-preview,
+.proposal-zone:has(.pending-movie:not(.hidden)) .proposal-preview {
+  display: flex; gap: 24px; overflow-x: auto; overflow-y: hidden; max-height: none; padding: 4px 0 12px; scrollbar-width: thin;
+  scroll-snap-type: x proximity; grid-row: 5;
+}
+.proposal-preview__item { flex: 0 0 275px; min-width: 0; scroll-snap-align: start; gap: 14px; }
+.proposal-preview__item, .proposal-preview__item.is-primary { padding: 0; border: 0; background: transparent; }
+.proposal-preview__poster { flex: 0 0 44px; width: 44px; height: 66px; border-radius: 5px; overflow: hidden; }
+.proposal-preview__meta { min-width: 0; }
+.proposal-preview__meta strong { font-family: var(--font-body); font-size: 12px; line-height: 1.5; }
+.proposal-preview__meta small { font-size: 9px; text-transform: none; }
+.proposal-preview__actions { gap: 2px; }
+.proposal-preview__promote,.proposal-preview__delete { width: 32px; height: 40px; min-width: 32px; background: transparent; }
+.pool-zone .section-intro--pool { margin-bottom: 20px; align-items: baseline; }
+.pool-zone .section-intro h3 { font-size: clamp(25px, 2.4vw, 32px); }
+.pool-zone .section-intro__metric { font-family: var(--font-body); font-size: 11px; color: var(--muted); text-transform: none; }
+.pool-zone .collection-toolbar { align-items: center; margin-bottom: 28px; gap: 18px; flex-wrap: wrap; }
+.pool-zone .filter-pills { gap: 8px 22px; flex-wrap: wrap; }
+.pool-zone .filter-pills button { position: relative; min-height: 40px; padding: 7px 0; border: 0; border-radius: 0; background: transparent; font-size: 12px; font-weight: 600; }
+.pool-zone .filter-pills button.is-active { color: var(--gold); background: transparent; box-shadow: none; }
+.pool-zone .filter-pills button.is-active::after { content: ''; position: absolute; left: 0; bottom: 0; width: 20px; height: 2px; background: var(--gold); }
+.pool-zone .sort-control { margin-left: auto; font-size: 11px; }
+.pool-zone .sort-control select { border: 0; background-color: transparent; font-size: 11px; }
+.movie-pools { gap: 42px; }
+.movie-pool__head { margin: 0 0 18px; padding: 0; gap: 10px; }
+.movie-pool__head h4 { font-family: var(--font-body); color: var(--muted); font-size: 11px; font-weight: 500; letter-spacing: 0; }
+.movie-pool__head > span { background: transparent; color: var(--muted); font-size: 10px; padding: 0; }
+.pool-zone .poster-grid { grid-template-columns: repeat(5, minmax(0,1fr)); gap: 34px 24px; }
+.selection-card { min-width: 0; display: flex; flex-direction: column; padding: 0; border: 0; background: transparent; }
+.selection-card .poster-card__button { flex: 1; display: flex; flex-direction: column; width: 100%; min-width: 0; }
+.selection-card .poster-card__button > img,.selection-card .poster-card__button > .poster-card__fallback { width: 100%; aspect-ratio: 2/3; height: auto; border-radius: 9px; transition: filter .25s, transform .35s; }
+.selection-card .poster-card__meta { width: 100%; min-height: 67px; padding: 14px 0 0; }
+.selection-card .movie-title-row { min-width: 0; }
+.selection-card .movie-title-row strong { font-family: var(--font-body); font-size: 14px; letter-spacing: -.025em; line-height: 1.45; font-weight: 700; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.selection-card .poster-card__meta > small { display: block; margin-top: 5px; font-size: 10px; font-weight: 500; color: var(--muted); letter-spacing: .04em; }
+.selection-card .selection-seen-button { top: 10px; left: 10px; min-width: 40px; min-height: 32px; padding: 6px 9px; border: 0; background: #090911ae; backdrop-filter: blur(14px); box-shadow: none; }
+.selection-card .selection-seen-button.is-seen { color: var(--gold); background: #090911e6; }
+.selection-card.is-declined .poster-card__button > img { filter: saturate(.4) brightness(.72); }
+.selection-card.is-declined:hover .poster-card__button > img { filter: none; }
+.interest-choices { display: grid; grid-template-columns: auto auto; justify-content: start; gap: 3px; margin-top: 10px; }
+.interest-choices button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 38px; border: 0; border-radius: 6px; padding: 7px 8px; font-family: var(--font-body); font-size: 11px; font-weight: 500; line-height: 1.25; background: transparent; color: var(--muted); white-space: nowrap; transition: color .2s, background .2s; }
+.interest-choices button .material-symbols-rounded { font-size: 15px; }
+.interest-choices button:hover { color: var(--ink); background: #ffffff06; }
+.interest-choices button[aria-pressed=true] { color: var(--gold); background: color-mix(in srgb, var(--gold) 8%, transparent); }
+.interest-choices button[data-interest-value='-1'][aria-pressed=true] { color: #dbb8c1; background: #ce8d9e0d; }
+.interest-choices button[aria-pressed=true] .material-symbols-rounded { font-variation-settings: 'FILL' 1; }
+.interest-choices button:disabled { opacity: .5; }
+#ratingModalInterest { margin-top: 15px; }
+#ratingModalInterest .interest-choices { margin: 0; gap: 8px; }
+#ratingModalInterest .interest-choices button { min-height: 42px; padding: 10px 13px; font-size: 12px; }
+.profile-availability-preference { display: grid; gap: 9px; margin: 25px 0 18px; }
+.profile-availability-preference label { color: var(--ink); font-size: 13px; }
+.profile-availability-preference select { width: 100%; min-width: 0; padding: 15px; min-height: 50px; border: 0; border-radius: 8px; background: color-mix(in srgb, var(--violet) 9%, var(--black)); color: var(--ink); font-family: var(--font-body); font-size: 13px; }
+.profile-availability-preference small { color: var(--muted); font-size: 11px; }
+#profileAvailabilityStatus { color: var(--gold); }
+#profileAvailabilityStatus:empty { display: none; }
+.participation-notice { font-size: 12px; color: var(--muted); margin: 0 0 22px; max-width: 600px; line-height: 1.65; }
+@media(min-width:1600px) { .pool-zone .poster-grid { grid-template-columns: repeat(6,minmax(0,1fr)); } }
+@media(max-width:1100px) { .pool-zone .poster-grid { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 30px 20px; } .interest-choices { grid-template-columns: 1fr; justify-content: stretch; } .interest-choices button { justify-content: flex-start; } }
+@media(max-width:800px) { .pool-zone .poster-grid { grid-template-columns: repeat(3,minmax(0,1fr)); } }
+@media(max-width:600px) {
+  .selection-layout { gap: 35px; }
+  .pool-zone .poster-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 28px 16px; }
+  .proposal-zone .search input { min-height: 56px; font-size: 16px; }
+  .proposal-preview__item { flex-basis: 255px; }
+  .pool-zone .filter-pills { gap: 2px 17px; }
+  .pool-zone .filter-pills button { font-size: 11px; }
+  .pool-zone .collection-toolbar { gap: 10px; margin-bottom: 25px; }
+  .pool-zone .sort-control { margin-left: 0; }
+  .pool-zone .section-intro h3 { font-size: 25px; }
+  .selection-card .poster-card__meta { padding-top: 12px; min-height: 68px; }
+  .selection-card .movie-title-row strong { font-size: 13px; }
+  .selection-card .poster-card__meta > small { font-size: 9px; }
+  .interest-choices { gap: 0; margin-top: 5px; }
+  .interest-choices button { min-height: 38px; padding: 7px 4px; font-size: 11px; }
+  .selection-card .selection-seen-button { left: 8px; top: 8px; }
+  .profile-availability-preference select { font-size: 16px; }
+}
+@media(prefers-reduced-motion:reduce) { .selection-card *, .interest-choices button { transition: none; } }
+
+.pool-zone { scroll-margin-top: 100px; }
+#profileAvailabilityStatus.is-error { color: #efa8b4; }
+@media(min-width:1101px) and (max-width:1250px) { .interest-choices { grid-template-columns: 1fr; } .interest-choices button { justify-content: flex-start; } }
