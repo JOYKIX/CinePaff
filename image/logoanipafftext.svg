@@ -2,9 +2,16 @@
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
 <svg width="100%" height="100%" viewBox="0 0 2268 485" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:2;">
     <g transform="matrix(49.434632,0,0,49.434632,-6362.373789,-3196.769033)">
-        <text x="128.713px" y="74.304px" style="font-family:'ReggaeOne-Regular', 'Reggae One';font-size:12px;fill:white;">Ani</text>
-        <g transform="matrix(12,0,0,12,174.252876,74.303628)">
+        <g transform="matrix(1,0,0,1,128.713,74.304)">
+            <text x="0px" y="0px" style="font-family:'ReggaeOne-Regular', 'Reggae One';font-size:12px;fill:white;">Ani</text>
         </g>
-        <text x="149.617px" y="74.304px" style="font-family:'ReggaeOne-Regular', 'Reggae One';font-size:12px;fill:rgb(255,92,157);">P<tspan x="157.681px " y="74.304px ">a</tspan>ff</text>
+        <g>
+            <g transform="matrix(1,0,0,1,149.617,74.304)">
+                <text x="0px" y="0px" style="font-family:'ReggaeOne-Regular', 'Reggae One';font-size:12px;fill:rgb(255,92,157);">P</text>
+            </g>
+            <g transform="matrix(1,0,0,1,157.681,74.304)">
+                <text x="0px" y="0px" style="font-family:'ReggaeOne-Regular', 'Reggae One';font-size:12px;fill:rgb(255,92,157);">aff</text>
+            </g>
+        </g>
     </g>
 </svg>
